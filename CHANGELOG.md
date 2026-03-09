@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 (2026-03-09)
+
+### Bug Fixes
+
+- update dependencies
+
 ## 0.9.0 (2026-02-20)
 
 ### Features
