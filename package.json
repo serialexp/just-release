@@ -31,18 +31,18 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "conventional-commits-parser": "^6.2.1",
-    "glob": "^11.0.3",
-    "semver": "^7.7.3",
-    "simple-git": "^3.30.0",
+    "conventional-commits-parser": "^6.3.0",
+    "glob": "^13.0.6",
+    "semver": "^7.7.4",
+    "simple-git": "^3.32.3",
     "smol-toml": "^1.6.0",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/conventional-commits-parser": "^5.0.2",
-    "@types/node": "^24.10.0",
+    "@types/node": "^25.3.5",
     "@types/semver": "^7.7.1",
-    "tsx": "^4.20.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
