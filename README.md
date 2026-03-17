@@ -16,7 +16,7 @@ This tool is **opinionated by design**. It doesn't try to support every weird re
 - ✅ Works with JavaScript (npm/pnpm/yarn), Rust (Cargo), and Go ecosystems
 - ✅ Supports mixed-ecosystem repos (e.g., JS + Rust in the same repo)
 
-The actual publishing step is up to you - use `npm publish`, `cargo publish`, or whatever fits your setup. `just-release` handles everything up to creating the release PR.
+`just-release` handles the full lifecycle: version bumping, changelogs, release PRs, publishing to registries (npm, crates.io), and creating GitHub releases.
 
 If this matches your workflow (and it should), `just-release` will make your life easier. If you need something else, this probably isn't the tool for you.
 
@@ -206,30 +206,22 @@ jobs:
 
 ### Publishing
 
-`just-release` handles versioning, changelogs, and release PRs - but **publishing is up to you**. This separation gives you full control over how and where you publish.
+When `just-release` runs in post-release mode (i.e., the current commit is a `release: X.Y.Z` commit), it automatically:
 
-Below are publishing workflow examples for each ecosystem.
+1. **Publishes packages** to their respective registries (npm, crates.io)
+2. **Creates a GitHub release** with changelog notes and a `vX.Y.Z` tag
+
+You just need to provide the right environment variables and ensure your project builds before `just-release` runs.
+
+Below are publish workflow examples for each ecosystem.
 
 ---
 
 #### Publishing npm Packages
 
-##### Option 1: Trusted Publishing (Recommended)
+`just-release` detects your package manager (pnpm/yarn/npm) and runs the appropriate publish command. It skips private packages automatically.
 
-Trusted publishing uses OIDC - no npm tokens required. This works with npmjs.org or any registry that supports trusted publishing and provenance.
-
-**Setup Trusted Publishing (npmjs.org):**
-
-1. Go to https://www.npmjs.com/package/YOUR-PACKAGE-NAME/access
-2. Click "Publishing access" → "Add a trusted publisher"
-3. Configure:
-   - **Source**: GitHub Actions
-   - **Repository owner**: Your GitHub username/org (case-sensitive!)
-   - **Repository name**: Your repo name
-   - **Workflow filename**: `publish.yml` (optional but recommended)
-   - **Environment**: leave blank
-
-For custom registries, consult their documentation for trusted publishing setup.
+**Authentication:** Set `NODE_AUTH_TOKEN` or `NPM_TOKEN` as an environment variable. If neither is set, npm publishing is skipped.
 
 Create `.github/workflows/publish.yml`:
 
@@ -269,82 +261,47 @@ jobs:
       - run: pnpm install
       - run: pnpm build
 
-      # Upgrade npm for provenance support (GitHub runners ship with old npm)
-      - run: npm install -g npm@latest
-
-      - run: pnpm publish --access public --provenance
-
-      # Create GitHub release with changelog notes
+      # just-release handles npm publish + GitHub release
       - run: npx just-release
         env:
+          CI: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
+
+##### NPM Authentication Options
+
+**Option 1: Trusted Publishing (Recommended)**
+
+Trusted publishing uses OIDC — no npm tokens required. Works with npmjs.org or any registry that supports it.
+
+1. Go to https://www.npmjs.com/package/YOUR-PACKAGE-NAME/access
+2. Click "Publishing access" → "Add a trusted publisher"
+3. Configure:
+   - **Source**: GitHub Actions
+   - **Repository owner**: Your GitHub username/org (case-sensitive!)
+   - **Repository name**: Your repo name
+   - **Workflow filename**: `publish.yml` (optional but recommended)
+   - **Environment**: leave blank
 
 **Important:**
 - Your repository must be **public** for provenance to work
 - `package.json` must have a `repository` field matching your GitHub repo **exactly**:
   - Format: `https://github.com/Owner/repo-name` (no `git+` prefix, no `.git` suffix)
   - Case-sensitive: Owner name must match exactly (e.g., `Aeolun`, not `aeolun`)
-- No `NPM_TOKEN` needed - authentication uses OIDC
 
-##### Option 2: NPM Token
-
-If your registry doesn't support trusted publishing, you can use a traditional npm token instead.
+**Option 2: NPM Token**
 
 1. Create an npm access token at https://www.npmjs.com/settings/YOUR-USERNAME/tokens
 2. Add it as a repository secret named `NPM_TOKEN` in your GitHub repository settings
-
-Create `.github/workflows/publish.yml`:
-
-```yaml
-name: Publish
-
-on:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: write
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    if: >-
-      startsWith(github.event.head_commit.message, 'release:') ||
-      (startsWith(github.event.head_commit.message, 'Merge') && contains(github.event.head_commit.message, 'release/'))
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install
-      - run: pnpm build
-
-      - run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Create GitHub release with changelog notes
-      - run: npx just-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
 
 ---
 
 #### Publishing Rust Crates
 
-To publish to crates.io after a release PR is merged:
+`just-release` runs `cargo publish` for each non-private crate in workspace order.
 
-1. Create a crates.io API token at https://crates.io/settings/tokens
-2. Add it as a repository secret named `CARGO_REGISTRY_TOKEN` in your GitHub repository settings
+**Authentication:** Set `CARGO_REGISTRY_TOKEN` as an environment variable. If not set, Rust publishing is skipped.
 
 Create `.github/workflows/publish.yml`:
 
@@ -370,38 +327,27 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      # Create GitHub release with changelog notes
       - uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
+
+      # just-release handles cargo publish + GitHub release
       - run: npx just-release
         env:
+          CI: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-For a **Cargo workspace** with multiple crates, publish each one:
-
-```yaml
-      - run: |
-          cargo publish -p my-core-crate
-          cargo publish -p my-other-crate
-        env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 ```
 
-**Note:** If your crates have internal dependencies (e.g., `my-other-crate` depends on `my-core-crate`), publish the dependency first — crates.io validates that dependencies exist at the declared version at publish time.
+**Note:** If your crates have internal dependencies, `just-release` publishes them in workspace order so dependencies are available on crates.io before dependents are published.
 
 ---
 
 #### Publishing Go Modules
 
-Go modules don't need an explicit publish step. The `go` tool resolves modules directly from git tags, and `just-release` already creates `vX.Y.Z` tags via the GitHub release step.
+Go modules don't need an explicit publish step. The `go` tool resolves modules directly from git tags, and `just-release` creates `vX.Y.Z` tags via the GitHub release.
 
-After the release PR is merged, you only need to create the GitHub release:
+Create `.github/workflows/publish.yml`:
 
 ```yaml
 name: Publish
@@ -423,12 +369,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Create GitHub release (which creates the vX.Y.Z tag that Go needs)
       - uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
+
+      # Creates GitHub release with vX.Y.Z tag
       - run: npx just-release
         env:
+          CI: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
