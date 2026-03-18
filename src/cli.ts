@@ -197,13 +197,6 @@ async function main() {
       commits
     );
 
-    if (versionBump.bumpType === null) {
-      console.log(
-        '   No releasable changes (only chore/docs commits). Skipping release.'
-      );
-      process.exit(0);
-    }
-
     console.log(
       `   Bump type: ${versionBump.bumpType} (${workspace.rootVersion} → ${versionBump.newVersion})\n`
     );

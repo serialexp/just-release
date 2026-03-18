@@ -69,7 +69,7 @@ test('calculateVersionBump returns patch for fix commits', () => {
   assert.strictEqual(result.newVersion, '1.0.1');
 });
 
-test('calculateVersionBump returns null for only chore commits', () => {
+test('calculateVersionBump returns patch for only chore commits', () => {
   const commits: CommitInfo[] = [
     {
       hash: 'abc123',
@@ -86,11 +86,11 @@ test('calculateVersionBump returns null for only chore commits', () => {
 
   const result = calculateVersionBump('1.0.0', commits);
 
-  assert.strictEqual(result.bumpType, null);
-  assert.strictEqual(result.newVersion, null);
+  assert.strictEqual(result.bumpType, 'patch');
+  assert.strictEqual(result.newVersion, '1.0.1');
 });
 
-test('calculateVersionBump returns null for only docs commits', () => {
+test('calculateVersionBump returns patch for only docs commits', () => {
   const commits: CommitInfo[] = [
     {
       hash: 'abc123',
@@ -107,8 +107,8 @@ test('calculateVersionBump returns null for only docs commits', () => {
 
   const result = calculateVersionBump('1.0.0', commits);
 
-  assert.strictEqual(result.bumpType, null);
-  assert.strictEqual(result.newVersion, null);
+  assert.strictEqual(result.bumpType, 'patch');
+  assert.strictEqual(result.newVersion, '1.0.1');
 });
 
 test('calculateVersionBump prioritizes breaking over feat', () => {
@@ -184,7 +184,7 @@ test('calculateVersionBump returns null for empty commits', () => {
   assert.strictEqual(result.newVersion, null);
 });
 
-test('calculateVersionBump returns null for only non-conventional commits', () => {
+test('calculateVersionBump returns patch for only non-conventional commits', () => {
   const commits: CommitInfo[] = [
     {
       hash: 'abc123',
@@ -201,8 +201,8 @@ test('calculateVersionBump returns null for only non-conventional commits', () =
 
   const result = calculateVersionBump('1.0.0', commits);
 
-  assert.strictEqual(result.bumpType, null);
-  assert.strictEqual(result.newVersion, null);
+  assert.strictEqual(result.bumpType, 'patch');
+  assert.strictEqual(result.newVersion, '1.0.1');
 });
 
 test('calculateVersionBump still bumps when non-conventional commits mixed with feat', () => {

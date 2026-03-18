@@ -11,9 +11,6 @@ export interface VersionBumpResult {
   newVersion: string | null;
 }
 
-const RELEASE_TYPES = ['feat', 'fix', 'perf'];
-const SKIP_TYPES = ['chore', 'docs', 'style', 'refactor', 'test', 'build', 'ci'];
-
 export function calculateVersionBump(
   currentVersion: string,
   commits: CommitInfo[]
@@ -22,7 +19,7 @@ export function calculateVersionBump(
     return { bumpType: null, newVersion: null };
   }
 
-  let bumpType: BumpType = null;
+  let bumpType: BumpType;
 
   // Check for breaking changes first (major bump)
   const hasBreaking = commits.some((c) => c.breaking);
@@ -34,19 +31,9 @@ export function calculateVersionBump(
     if (hasFeat) {
       bumpType = 'minor';
     } else {
-      // Check for fixes or performance improvements (patch bump)
-      const hasFix = commits.some(
-        (c) => c.type === 'fix' || c.type === 'perf'
-      );
-      if (hasFix) {
-        bumpType = 'patch';
-      }
+      // Everything else (fix, perf, chore, docs, etc.) gets a patch bump
+      bumpType = 'patch';
     }
-  }
-
-  // If only chore/docs/etc commits, don't bump
-  if (bumpType === null) {
-    return { bumpType: null, newVersion: null };
   }
 
   const newVersion = semver.inc(currentVersion, bumpType);
