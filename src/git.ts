@@ -36,10 +36,12 @@ export async function createReleaseBranch(repoPath: string): Promise<{ name: str
   const branches = await git.branch(['-a']); // -a includes remote branches
   const allBranches = branches.all;
 
-  // Look for release branches (local or remote)
-  const existingReleaseBranch = allBranches.find((b) =>
-    b.startsWith('release/') || b.includes('remotes/origin/release/')
-  );
+  // Look for release branches matching our format (release/YYYY-MM-DD)
+  const releaseDatePattern = /^release\/\d{4}-\d{2}-\d{2}$/;
+  const existingReleaseBranch = allBranches.find((b) => {
+    const name = b.replace('remotes/origin/', '');
+    return releaseDatePattern.test(name);
+  });
 
   let branchName: string;
   let isNew: boolean;

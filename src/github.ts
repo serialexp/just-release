@@ -36,7 +36,8 @@ export async function getRepoInfo(repoPath: string): Promise<RepoInfo> {
 export function findExistingReleaseBranch(
   branches: Array<{ name: string }>
 ): string | null {
-  const releaseBranch = branches.find((b) => b.name.startsWith('release/'));
+  const releaseDatePattern = /^release\/\d{4}-\d{2}-\d{2}$/;
+  const releaseBranch = branches.find((b) => releaseDatePattern.test(b.name));
   return releaseBranch ? releaseBranch.name : null;
 }
 

@@ -82,3 +82,28 @@ test('findExistingReleaseBranch returns first release branch when multiple exist
 
   assert.strictEqual(result, 'release/2024-01-15');
 });
+
+test('findExistingReleaseBranch ignores non-date release branches', () => {
+  const branches = [
+    { name: 'main' },
+    { name: 'release/2.55.0' },
+    { name: 'release/v1.0.0' },
+    { name: 'release/foo' },
+  ];
+
+  const result = findExistingReleaseBranch(branches as any);
+
+  assert.strictEqual(result, null);
+});
+
+test('findExistingReleaseBranch picks date branch over non-date branch', () => {
+  const branches = [
+    { name: 'main' },
+    { name: 'release/2.55.0' },
+    { name: 'release/2024-01-15' },
+  ];
+
+  const result = findExistingReleaseBranch(branches as any);
+
+  assert.strictEqual(result, 'release/2024-01-15');
+});
