@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 (2026-03-19)
+
+### Features
+
+- treat all commit types as releasable
+
+### Bug Fixes
+
+- only match release/YYYY-MM-DD branches as valid release branches
+
+### Documentation
+
+- update publish workflows to reflect built-in publishing
+
 ## 0.9.1 (2026-03-09)
 
 ### Bug Fixes
