@@ -72,6 +72,11 @@ async function runPostRelease(cwd: string) {
             `   ❌ Failed to publish ${result.packageName}: ${result.error}`
           );
         }
+        if (result.warnings) {
+          for (const warning of result.warnings) {
+            console.log(`   ⚠️  ${warning}`);
+          }
+        }
       }
     }
   }

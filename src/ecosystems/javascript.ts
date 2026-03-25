@@ -33,15 +33,105 @@ export async function detectJsPackageManager(
 }
 
 export function getPublishCommand(
-  pm: JsPackageManager
+  pm: JsPackageManager,
+  provenance: boolean = false
 ): { command: string; args: string[] } {
   switch (pm) {
     case 'pnpm':
-      return { command: 'pnpm', args: ['publish', '--no-git-checks', '--access', 'public'] };
+      return {
+        command: 'pnpm',
+        args: ['publish', '--no-git-checks', '--access', 'public', ...(provenance ? ['--provenance'] : [])],
+      };
     case 'yarn':
+      // Yarn does not support --provenance
       return { command: 'yarn', args: ['npm', 'publish', '--access', 'public'] };
     case 'npm':
-      return { command: 'npm', args: ['publish', '--access', 'public'] };
+      return {
+        command: 'npm',
+        args: ['publish', '--access', 'public', ...(provenance ? ['--provenance'] : [])],
+      };
+  }
+}
+
+/**
+ * Extract the GitHub owner/repo from a package.json repository field.
+ * Handles both string shorthand ("github:user/repo", "user/repo")
+ * and object form ({ url: "https://github.com/user/repo" }).
+ * Returns null if not a recognizable GitHub repository.
+ */
+export function extractGitHubRepo(
+  repository: unknown
+): string | null {
+  let url: string | undefined;
+
+  if (typeof repository === 'string') {
+    url = repository;
+  } else if (
+    repository &&
+    typeof repository === 'object' &&
+    'url' in repository &&
+    typeof (repository as { url: unknown }).url === 'string'
+  ) {
+    url = (repository as { url: string }).url;
+  }
+
+  if (!url) return null;
+
+  // "github:owner/repo" shorthand
+  const shorthand = url.match(/^(?:github:)?([^/]+\/[^/.#]+)$/);
+  if (shorthand) return shorthand[1];
+
+  // HTTPS or SSH GitHub URL
+  const full = url.match(/github\.com[:/]([^/]+\/[^/.#]+?)(?:\.git)?$/);
+  if (full) return full[1];
+
+  return null;
+}
+
+/**
+ * Check whether a package supports npm provenance.
+ * Requires a `repository` field in package.json pointing to the same GitHub
+ * repo we're running in, and a supported package manager (npm or pnpm).
+ */
+export async function checkProvenanceSupport(
+  packagePath: string,
+  pm: JsPackageManager
+): Promise<{ supported: boolean; reason?: string }> {
+  if (pm === 'yarn') {
+    return { supported: false, reason: 'yarn does not support --provenance' };
+  }
+
+  try {
+    const content = await readFile(join(packagePath, 'package.json'), 'utf-8');
+    const pkg = JSON.parse(content);
+    if (!pkg.repository) {
+      return {
+        supported: false,
+        reason: `package.json is missing a "repository" field (required for npm provenance)`,
+      };
+    }
+
+    // If running in GitHub Actions, verify the repository field matches
+    const ciRepo = process.env.GITHUB_REPOSITORY;
+    if (ciRepo) {
+      const pkgRepo = extractGitHubRepo(pkg.repository);
+      if (!pkgRepo) {
+        return {
+          supported: false,
+          reason: `package.json "repository" does not point to a GitHub repo (required for npm provenance)`,
+        };
+      }
+      if (pkgRepo !== ciRepo) {
+        return {
+          supported: false,
+          reason: `package.json "repository" (${pkgRepo}) doesn't match the current GitHub repo (${ciRepo}) — can't use --provenance`,
+        };
+      }
+    }
+
+    return { supported: true };
+  } catch {
+    return { supported: false, reason: 'could not read package.json' };
   }
 }
 
@@ -181,13 +271,24 @@ export class JavaScriptAdapter implements EcosystemAdapter {
   ): Promise<PublishResult[]> {
     const jsPackages = packages.filter((p) => p.ecosystem === 'javascript');
     const pm = await detectJsPackageManager(rootPath);
-    const { command, args } = getPublishCommand(pm);
     const results: PublishResult[] = [];
 
     for (const pkg of jsPackages) {
+      const warnings: string[] = [];
+      const provenance = await checkProvenanceSupport(pkg.path, pm);
+      if (!provenance.supported) {
+        warnings.push(`Publishing ${pkg.name} without provenance: ${provenance.reason}`);
+      }
+
+      const { command, args } = getPublishCommand(pm, provenance.supported);
+
       try {
         await exec(command, args, { cwd: pkg.path });
-        results.push({ packageName: pkg.name, success: true });
+        results.push({
+          packageName: pkg.name,
+          success: true,
+          ...(warnings.length > 0 ? { warnings } : {}),
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         results.push({ packageName: pkg.name, success: false, error: message });

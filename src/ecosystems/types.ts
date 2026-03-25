@@ -25,6 +25,7 @@ export interface PublishResult {
   packageName: string;
   success: boolean;
   error?: string;
+  warnings?: string[];
 }
 
 export interface PublishPrerequisiteResult {
