@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0 (2026-03-25)
+
+### Features
+
+- add npm provenance support and simplify publish workflow
+
 ## 0.10.0 (2026-03-19)
 
 ### Features
