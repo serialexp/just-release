@@ -18,6 +18,7 @@ import { simpleGit } from 'simple-git';
 import { getCommitPrefix, generatePRSummary } from './formatting.js';
 import { detectPostRelease } from './post-release.js';
 import { publishAllPackages, hasPublishFailures } from './publish.js';
+import { detectWorkflowPublishSteps } from './workflow-publish-check.js';
 import { createRequire } from 'node:module';
 import type { WorkspacePackage } from './workspace.js';
 
@@ -47,45 +48,59 @@ async function runPostRelease(cwd: string) {
   const workspace = await detectWorkspace(cwd);
   const version = workspace.rootVersion;
 
-  // Publish packages to registries (before GitHub release so packages are
-  // available when the release is announced / Go tag is created)
-  console.log('📦 Publishing packages...\n');
-  const summaries = await publishAllPackages(
-    cwd,
-    version,
-    workspace.packages,
-    workspace.adapters
-  );
-
+  // Check if the workflow already has its own publish steps
+  const workflowCheck = await detectWorkflowPublishSteps(cwd);
   let publishFailed = false;
-  for (const summary of summaries) {
-    if (summary.skipped) {
-      console.log(
-        `   Skipping ${summary.ecosystem} publishing: ${summary.skipReason}`
-      );
-    } else {
-      for (const result of summary.results) {
-        if (result.success) {
-          console.log(`   ✅ Published ${result.packageName}`);
-        } else {
-          console.log(
-            `   ❌ Failed to publish ${result.packageName}: ${result.error}`
-          );
-        }
-        if (result.warnings) {
-          for (const warning of result.warnings) {
-            console.log(`   ⚠️  ${warning}`);
+
+  if (workflowCheck.hasExternalPublish) {
+    console.log('⚠️  ════════════════════════════════════════════════════════════');
+    console.log('⚠️  Workflow already contains publish steps — skipping publishing');
+    console.log('⚠️');
+    console.log(`⚠️  Detected: ${workflowCheck.matches.join(', ')}`);
+    console.log('⚠️');
+    console.log('⚠️  just-release handles publishing automatically. Remove the');
+    console.log('⚠️  publish steps from your workflow to avoid double-publishing.');
+    console.log('⚠️  ════════════════════════════════════════════════════════════\n');
+  } else {
+    // Publish packages to registries (before GitHub release so packages are
+    // available when the release is announced / Go tag is created)
+    console.log('📦 Publishing packages...\n');
+    const summaries = await publishAllPackages(
+      cwd,
+      version,
+      workspace.packages,
+      workspace.adapters
+    );
+
+    for (const summary of summaries) {
+      if (summary.skipped) {
+        console.log(
+          `   Skipping ${summary.ecosystem} publishing: ${summary.skipReason}`
+        );
+      } else {
+        for (const result of summary.results) {
+          if (result.success) {
+            console.log(`   ✅ Published ${result.packageName}`);
+          } else {
+            console.log(
+              `   ❌ Failed to publish ${result.packageName}: ${result.error}`
+            );
+          }
+          if (result.warnings) {
+            for (const warning of result.warnings) {
+              console.log(`   ⚠️  ${warning}`);
+            }
           }
         }
       }
     }
-  }
 
-  if (hasPublishFailures(summaries)) {
-    publishFailed = true;
-    console.log('\n⚠️  Some packages failed to publish\n');
-  } else if (summaries.length > 0) {
-    console.log();
+    if (hasPublishFailures(summaries)) {
+      publishFailed = true;
+      console.log('\n⚠️  Some packages failed to publish\n');
+    } else if (summaries.length > 0) {
+      console.log();
+    }
   }
 
   console.log(`📝 Creating GitHub release for v${version}...\n`);
