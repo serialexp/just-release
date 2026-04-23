@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0 (2026-04-23)
+
+### Features
+
+- skip publishing when workflow already has publish steps
+
 ## 0.11.0 (2026-03-25)
 
 ### Features
