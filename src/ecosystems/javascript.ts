@@ -324,10 +324,21 @@ export class JavaScriptAdapter implements EcosystemAdapter {
       return { ready: false, reason: `${pm} is not installed` };
     }
 
-    if (!process.env.NODE_AUTH_TOKEN && !process.env.NPM_TOKEN) {
+    // Accept any of:
+    //   - NODE_AUTH_TOKEN / NPM_TOKEN  (classic token auth)
+    //   - GitHub Actions OIDC env vars (npm trusted publishing — npm CLI
+    //     reads these and exchanges the OIDC ID token for a short-lived
+    //     publish token; no static secret required)
+    const hasToken = !!(process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN);
+    const hasOidc = !!(
+      process.env.ACTIONS_ID_TOKEN_REQUEST_URL &&
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    );
+    if (!hasToken && !hasOidc) {
       return {
         ready: false,
-        reason: 'NODE_AUTH_TOKEN (or NPM_TOKEN) not set',
+        reason:
+          'No npm auth detected: set NODE_AUTH_TOKEN/NPM_TOKEN, or grant `id-token: write` and configure trusted publishing on npmjs.com',
       };
     }
 
