@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.5 (2026-05-04)
+
+### Bug Fixes
+
+- anchor release-commit detection to subject start
+
 ## 0.13.4 (2026-05-04)
 
 ### Bug Fixes
