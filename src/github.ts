@@ -124,7 +124,22 @@ export async function createOrUpdateGitHubRelease(
   releaseNotes: string,
   token: string
 ): Promise<{ url: string; isNew: boolean }> {
-  const octokit = new Octokit({ auth: token });
+  // Octokit's default `log.warn` prints a line like
+  //   `GET /repos/.../releases/tags/v0.13.2 - 404 with id ... in 321ms`
+  // for any 4xx response. The 404 from the existence probe below is
+  // expected on every first-time release and looks like an error in CI
+  // logs. Silence Octokit's per-request warnings — we surface our own
+  // status messages, and any *real* problem still throws and is handled
+  // by the caller.
+  const octokit = new Octokit({
+    auth: token,
+    log: {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: console.error,
+    },
+  });
   const repoInfo = await getRepoInfo(repoPath);
   const git: SimpleGit = simpleGit(repoPath);
 
@@ -142,8 +157,13 @@ export async function createOrUpdateGitHubRelease(
       tag: tagName,
     });
     existingRelease = data;
-  } catch (error) {
-    // Release doesn't exist, we'll create a new one
+    console.log(`   Release ${tagName} already exists, updating tag and notes...`);
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) {
+      console.log(`   Release ${tagName} doesn't exist yet, creating...`);
+    } else {
+      throw error;
+    }
   }
 
   if (existingRelease) {
