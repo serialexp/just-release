@@ -1,7 +1,7 @@
 // ABOUTME: JavaScript ecosystem adapter for npm/pnpm/yarn workspaces
 // ABOUTME: Detects package.json, discovers workspace packages, updates versions, publishes
 
-import { readFile, writeFile, access } from 'node:fs/promises';
+import { readFile, writeFile, access, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { glob } from 'glob';
@@ -203,6 +203,48 @@ export class JavaScriptAdapter implements EcosystemAdapter {
       });
     }
 
+    // NAPI per-platform sub-packages: a workspace package with `napi.targets`
+    // and an `npm/` directory ships an extra package.json per target. Lock-step
+    // them with the parent so they get the same version + can be published.
+    for (const parent of packages.slice()) {
+      const parentManifestPath = join(parent.path, 'package.json');
+      let parentManifest: any;
+      try {
+        parentManifest = JSON.parse(await readFile(parentManifestPath, 'utf-8'));
+      } catch {
+        continue;
+      }
+      if (!parentManifest.napi?.targets) continue;
+
+      const npmDir = join(parent.path, 'npm');
+      try {
+        const s = await stat(npmDir);
+        if (!s.isDirectory()) continue;
+      } catch {
+        continue;
+      }
+
+      const subPaths = await glob('*/package.json', {
+        cwd: npmDir,
+        absolute: true,
+      });
+      for (const subPath of subPaths) {
+        let subPkg: any;
+        try {
+          subPkg = JSON.parse(await readFile(subPath, 'utf-8'));
+        } catch {
+          continue;
+        }
+        if (!subPkg.name) continue;
+        packages.push({
+          name: subPkg.name,
+          version: subPkg.version,
+          path: subPath.replace(/\/package\.json$/, ''),
+          ecosystem: 'javascript',
+        });
+      }
+    }
+
     return packages;
   }
 
@@ -213,11 +255,39 @@ export class JavaScriptAdapter implements EcosystemAdapter {
   ): Promise<void> {
     const jsPackages = packages.filter((p) => p.ecosystem === 'javascript');
 
+    // Build a set of all known workspace package names so we can rewrite
+    // cross-package dep entries to the new version (keeps optionalDependencies
+    // for NAPI sub-packages, peerDependencies between workspace plugins, etc.
+    // in lock-step without special-casing each consumer).
+    const knownNames = new Set(jsPackages.map((p) => p.name).filter(Boolean));
+    const depKeys = [
+      'dependencies',
+      'devDependencies',
+      'peerDependencies',
+      'optionalDependencies',
+    ] as const;
+
+    function rewriteWorkspaceDeps(manifest: any): void {
+      for (const key of depKeys) {
+        const deps = manifest[key];
+        if (!deps || typeof deps !== 'object') continue;
+        for (const name of Object.keys(deps)) {
+          if (!knownNames.has(name)) continue;
+          const current = deps[name];
+          // Preserve `workspace:*` / `workspace:^` style protocol entries —
+          // those resolve at install/publish time and don't need rewriting.
+          if (typeof current === 'string' && current.startsWith('workspace:')) continue;
+          deps[name] = newVersion;
+        }
+      }
+    }
+
     // Update root package.json
     const rootPkgPath = join(rootPath, 'package.json');
     const rootContent = await readFile(rootPkgPath, 'utf-8');
     const rootPackage = JSON.parse(rootContent);
     rootPackage.version = newVersion;
+    rewriteWorkspaceDeps(rootPackage);
     await writeFile(rootPkgPath, JSON.stringify(rootPackage, null, 2) + '\n');
 
     // Update workspace packages (skip root if it's in the packages list)
@@ -230,6 +300,7 @@ export class JavaScriptAdapter implements EcosystemAdapter {
       const pkgContent = await readFile(pkgPath, 'utf-8');
       const pkgJson = JSON.parse(pkgContent);
       pkgJson.version = newVersion;
+      rewriteWorkspaceDeps(pkgJson);
       await writeFile(pkgPath, JSON.stringify(pkgJson, null, 2) + '\n');
     }
   }

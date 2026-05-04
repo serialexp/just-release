@@ -146,7 +146,7 @@ test('detectWorkspace gets version from git tag when no release commit', async (
   }
 });
 
-test('detectWorkspace returns 0.0.0 when no version source found', async () => {
+test('detectWorkspace falls back to package.json version when no commit or tag', async () => {
   const tmpDir = await mkdtemp(join(tmpdir(), 'test-'));
 
   try {
@@ -163,7 +163,9 @@ test('detectWorkspace returns 0.0.0 when no version source found', async () => {
 
     const result = await detectWorkspace(tmpDir);
 
-    assert.strictEqual(result.rootVersion, '0.0.0');
+    // No release commit, no tag — fall back to the manifest version rather
+    // than silently resetting to 0.0.0.
+    assert.strictEqual(result.rootVersion, '1.0.0');
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }

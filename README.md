@@ -138,6 +138,63 @@ feat!: remove deprecated API
 BREAKING CHANGE: The old API has been removed. Use the new API instead.
 ```
 
+### Prerelease Versions (alpha, beta, rc)
+
+When the current version contains a prerelease segment (e.g. `0.1.0-alpha.16`),
+`just-release` enters **prerelease mode**:
+
+- Every release increments the prerelease counter (`0.1.0-alpha.16 → 0.1.0-alpha.17`).
+- Conventional commit types do **not** drive the segment in this mode — `feat`,
+  `fix`, even `BREAKING CHANGE` all just bump the counter. Changelogs still
+  group commits by type.
+
+#### Graduate to a stable release
+
+Add a `Release-As: stable` footer to any commit since the last release:
+
+```
+feat: ready for 1.0
+
+Release-As: stable
+```
+
+`0.1.0-alpha.16` → `0.1.0`. Subsequent releases follow normal conventional-commit
+rules.
+
+#### Force an exact version
+
+```
+chore: bump to 1.0.0
+
+Release-As: 1.0.0
+```
+
+#### Start a prerelease cycle from a stable version
+
+Set `JUST_RELEASE_PRERELEASE=<tag>` once when you want to leave stable:
+
+```
+JUST_RELEASE_PRERELEASE=alpha just-release
+# 1.0.0 + [feat: …]  →  1.1.0-alpha.0
+```
+
+After the first prerelease, the env var is no longer needed — counter bumps take
+over automatically.
+
+### NAPI sub-package discovery
+
+If a workspace package declares NAPI-RS targets in its `package.json`:
+
+```json
+{
+  "napi": { "targets": ["x86_64-apple-darwin", "x86_64-unknown-linux-gnu"] }
+}
+```
+
+…and ships per-platform manifests under `<pkg>/npm/<target>/package.json`,
+those sub-packages are auto-discovered and version-locked to the parent. Their
+`optionalDependencies` references in the parent manifest are kept in sync.
+
 ## Workflow Setup
 
 ### GitHub Actions

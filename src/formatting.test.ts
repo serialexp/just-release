@@ -14,6 +14,7 @@ function makeCommit(overrides: Partial<CommitInfo> = {}): CommitInfo {
     packages: ['root'],
     files: ['src/index.ts'],
     rawMessage: 'feat: add feature',
+    releaseAs: null,
     ...overrides,
   };
 }

@@ -17,6 +17,7 @@ test('getCommitPrefix returns correct emoji for conventional types', () => {
     packages: [],
     files: [],
     rawMessage: `${type}: test`,
+    releaseAs: null,
   });
 
   assert.strictEqual(getCommitPrefix(makeCommit('feat')), '✨ ');
@@ -42,6 +43,7 @@ test('getCommitPrefix returns ❓ for non-conventional commits', () => {
     packages: [],
     files: [],
     rawMessage: 'Update readme',
+    releaseAs: null,
   };
 
   assert.strictEqual(getCommitPrefix(commit), '❓ ');
@@ -58,6 +60,7 @@ test('getCommitPrefix returns breaking prefix for breaking commits regardless of
     packages: [],
     files: [],
     rawMessage: 'Rewrite everything',
+    releaseAs: null,
   };
 
   assert.strictEqual(getCommitPrefix(commit), '⚠️ BREAKING: ');
@@ -75,6 +78,7 @@ test('generatePRSummary uses subject for conventional commits', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add new feature',
+      releaseAs: null,
     },
   ];
 
@@ -97,6 +101,7 @@ test('generatePRSummary falls back to rawMessage for non-conventional commits', 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Update readme and fix typos',
+      releaseAs: null,
     },
   ];
 
@@ -119,6 +124,7 @@ test('generatePRSummary handles mixed conventional and non-conventional commits'
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add feature',
+      releaseAs: null,
     },
     {
       hash: 'def456',
@@ -130,6 +136,7 @@ test('generatePRSummary handles mixed conventional and non-conventional commits'
       packages: ['pkg-a'],
       files: ['README.md'],
       rawMessage: 'Just a plain commit',
+      releaseAs: null,
     },
   ];
 
@@ -153,6 +160,7 @@ test('generatePRSummary includes commit body when present', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Update the thing',
+      releaseAs: null,
     },
   ];
 

@@ -8,6 +8,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Philosophy: Does one thing well - makes releasing version-synchronized packages simple. Works with JavaScript (npm/pnpm/yarn), Rust (Cargo), and Go ecosystems, including mixed-ecosystem repos.
 
+### Prerelease behavior
+
+When the current version is a prerelease (e.g. `0.1.0-alpha.16`), the bumper
+ignores conventional-commit types and just increments the counter. Two override
+signals:
+
+- A commit with a `Release-As: stable` footer graduates to the stable version
+  (strips the prerelease segment).
+- A commit with `Release-As: <semver>` forces that exact version.
+- `JUST_RELEASE_PRERELEASE=<tag>` env var enters a prerelease cycle from a
+  stable version once (e.g. `1.0.0 + feat → 1.1.0-alpha.0`).
+
+See `src/version.ts` (`calculateVersionBump`).
+
+### NAPI sub-package discovery
+
+The JS adapter (`src/ecosystems/javascript.ts`) auto-discovers NAPI-RS
+per-platform sub-packages under `<pkg>/npm/<target>/package.json` for any
+workspace package with a `napi.targets` field. Discovered sub-packages are
+treated as ordinary workspace packages — version-locked to the parent and
+published alongside it. The same path also rewrites cross-package dep entries
+(including `optionalDependencies`) to the new version on bump.
+
 ## Development Commands
 
 ### Building and Testing

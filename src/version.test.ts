@@ -18,6 +18,7 @@ test('calculateVersionBump returns major for breaking changes', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat!: breaking change',
+      releaseAs: null,
     },
   ];
 
@@ -39,6 +40,7 @@ test('calculateVersionBump returns minor for feat commits', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add feature',
+      releaseAs: null,
     },
   ];
 
@@ -60,6 +62,7 @@ test('calculateVersionBump returns patch for fix commits', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'fix: fix bug',
+      releaseAs: null,
     },
   ];
 
@@ -81,6 +84,7 @@ test('calculateVersionBump returns patch for only chore commits', () => {
       packages: [],
       files: ['README.md'],
       rawMessage: 'chore: update readme',
+      releaseAs: null,
     },
   ];
 
@@ -102,6 +106,7 @@ test('calculateVersionBump returns patch for only docs commits', () => {
       packages: [],
       files: ['docs/README.md'],
       rawMessage: 'docs: update docs',
+      releaseAs: null,
     },
   ];
 
@@ -123,6 +128,7 @@ test('calculateVersionBump prioritizes breaking over feat', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add feature',
+      releaseAs: null,
     },
     {
       hash: 'def456',
@@ -134,6 +140,7 @@ test('calculateVersionBump prioritizes breaking over feat', () => {
       packages: ['pkg-b'],
       files: ['packages/pkg-b/index.js'],
       rawMessage: 'fix!: breaking fix',
+      releaseAs: null,
     },
   ];
 
@@ -155,6 +162,7 @@ test('calculateVersionBump prioritizes feat over fix', () => {
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'fix: fix bug',
+      releaseAs: null,
     },
     {
       hash: 'def456',
@@ -166,6 +174,7 @@ test('calculateVersionBump prioritizes feat over fix', () => {
       packages: ['pkg-b'],
       files: ['packages/pkg-b/index.js'],
       rawMessage: 'feat: add feature',
+      releaseAs: null,
     },
   ];
 
@@ -196,6 +205,7 @@ test('calculateVersionBump returns patch for only non-conventional commits', () 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Update readme',
+      releaseAs: null,
     },
   ];
 
@@ -217,6 +227,7 @@ test('calculateVersionBump still bumps when non-conventional commits mixed with 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Update readme',
+      releaseAs: null,
     },
     {
       hash: 'def456',
@@ -228,6 +239,7 @@ test('calculateVersionBump still bumps when non-conventional commits mixed with 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add feature',
+      releaseAs: null,
     },
   ];
 
@@ -235,4 +247,56 @@ test('calculateVersionBump still bumps when non-conventional commits mixed with 
 
   assert.strictEqual(result.bumpType, 'minor');
   assert.strictEqual(result.newVersion, '1.1.0');
+});
+
+function makeCommit(overrides: Partial<CommitInfo> = {}): CommitInfo {
+  return {
+    hash: 'abc123',
+    type: 'feat',
+    scope: null,
+    subject: 's',
+    body: null,
+    breaking: false,
+    packages: ['pkg-a'],
+    files: ['packages/pkg-a/index.js'],
+    rawMessage: 'feat: s',
+    releaseAs: null,
+    ...overrides,
+  };
+}
+
+test('calculateVersionBump increments prerelease counter on any commit', () => {
+  const result = calculateVersionBump('0.1.0-alpha.16', [makeCommit({ type: 'feat' })]);
+  assert.strictEqual(result.bumpType, 'prerelease');
+  assert.strictEqual(result.newVersion, '0.1.0-alpha.17');
+});
+
+test('calculateVersionBump prerelease counter ignores breaking commits', () => {
+  const result = calculateVersionBump('0.1.0-alpha.16', [makeCommit({ breaking: true })]);
+  assert.strictEqual(result.bumpType, 'prerelease');
+  assert.strictEqual(result.newVersion, '0.1.0-alpha.17');
+});
+
+test('calculateVersionBump graduates on Release-As: stable', () => {
+  const result = calculateVersionBump('0.1.0-alpha.16', [makeCommit({ releaseAs: 'stable' })]);
+  assert.strictEqual(result.bumpType, 'graduate');
+  assert.strictEqual(result.newVersion, '0.1.0');
+});
+
+test('calculateVersionBump honors explicit Release-As: <version>', () => {
+  const result = calculateVersionBump('0.1.0-alpha.16', [makeCommit({ releaseAs: '0.2.0' })]);
+  assert.strictEqual(result.newVersion, '0.2.0');
+});
+
+test('calculateVersionBump enters prerelease via JUST_RELEASE_PRERELEASE env var', () => {
+  const prev = process.env.JUST_RELEASE_PRERELEASE;
+  process.env.JUST_RELEASE_PRERELEASE = 'alpha';
+  try {
+    const result = calculateVersionBump('0.1.0', [makeCommit({ type: 'feat' })]);
+    assert.strictEqual(result.bumpType, 'enter-prerelease');
+    assert.strictEqual(result.newVersion, '0.2.0-alpha.0');
+  } finally {
+    if (prev === undefined) delete process.env.JUST_RELEASE_PRERELEASE;
+    else process.env.JUST_RELEASE_PRERELEASE = prev;
+  }
 });

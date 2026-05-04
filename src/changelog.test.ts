@@ -27,6 +27,7 @@ test('generateChangelogs creates changelog for package with changes', async () =
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'feat: add new feature',
+        releaseAs: null,
       },
     ];
 
@@ -67,6 +68,7 @@ test('generateChangelogs skips package with no changes', async () => {
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'feat: add new feature',
+        releaseAs: null,
       },
     ];
 
@@ -114,6 +116,7 @@ test('generateChangelogs groups commits by type', async () => {
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'feat: add feature',
+        releaseAs: null,
       },
       {
         hash: 'def456',
@@ -125,6 +128,7 @@ test('generateChangelogs groups commits by type', async () => {
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'fix: fix bug',
+        releaseAs: null,
       },
     ];
 
@@ -165,6 +169,7 @@ test('generateChangelogs highlights breaking changes', async () => {
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'feat!: breaking change',
+        releaseAs: null,
       },
     ];
 
@@ -217,6 +222,7 @@ test('generateChangelogs prepends to existing changelog', async () => {
         packages: ['pkg-a'],
         files: ['packages/pkg-a/index.js'],
         rawMessage: 'feat: add new feature',
+        releaseAs: null,
       },
     ];
 
@@ -257,6 +263,7 @@ test('generateChangelogSection puts non-conventional commits in Other section', 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Update readme and fix typos',
+      releaseAs: null,
     },
   ];
 
@@ -280,6 +287,7 @@ test('generateChangelogSection uses rawMessage fallback when subject is null', (
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Just a plain commit message',
+      releaseAs: null,
     },
   ];
 
@@ -300,6 +308,7 @@ test('generateChangelogSection handles mix of conventional and non-conventional 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'feat: add new feature',
+      releaseAs: null,
     },
     {
       hash: 'def456',
@@ -311,6 +320,7 @@ test('generateChangelogSection handles mix of conventional and non-conventional 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/README.md'],
       rawMessage: 'Update documentation',
+      releaseAs: null,
     },
     {
       hash: 'ghi789',
@@ -322,6 +332,7 @@ test('generateChangelogSection handles mix of conventional and non-conventional 
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'fix: resolve crash on startup',
+      releaseAs: null,
     },
   ];
 
@@ -347,6 +358,7 @@ test('generateChangelogSection does not put breaking non-conventional commits in
       packages: ['pkg-a'],
       files: ['packages/pkg-a/index.js'],
       rawMessage: 'Completely rewrite the API',
+      releaseAs: null,
     },
   ];
 

@@ -642,3 +642,117 @@ test('checkProvenanceSupport is case-sensitive', async () => {
     rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('discoverPackages picks up NAPI sub-packages from npm/<target>/package.json', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-napi-'));
+  try {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['packages/*'] }),
+    );
+    await mkdir(join(tmpDir, 'packages', 'native', 'npm', 'darwin-x64'), { recursive: true });
+    await mkdir(join(tmpDir, 'packages', 'native', 'npm', 'linux-x64-gnu'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'packages', 'native', 'package.json'),
+      JSON.stringify({
+        name: 'my-native',
+        version: '1.0.0',
+        napi: { binaryName: 'my-native', targets: ['x86_64-apple-darwin', 'x86_64-unknown-linux-gnu'] },
+      }),
+    );
+    await writeFile(
+      join(tmpDir, 'packages', 'native', 'npm', 'darwin-x64', 'package.json'),
+      JSON.stringify({ name: 'my-native-darwin-x64', version: '1.0.0' }),
+    );
+    await writeFile(
+      join(tmpDir, 'packages', 'native', 'npm', 'linux-x64-gnu', 'package.json'),
+      JSON.stringify({ name: 'my-native-linux-x64-gnu', version: '1.0.0' }),
+    );
+
+    const packages = await adapter.discoverPackages(tmpDir);
+    const names = packages.map((p) => p.name).sort();
+    assert.deepStrictEqual(names, [
+      'my-native',
+      'my-native-darwin-x64',
+      'my-native-linux-x64-gnu',
+    ]);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('discoverPackages skips workspace packages without napi config', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-no-napi-'));
+  try {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['packages/*'] }),
+    );
+    await mkdir(join(tmpDir, 'packages', 'plain', 'npm', 'darwin-x64'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'packages', 'plain', 'package.json'),
+      JSON.stringify({ name: 'plain', version: '1.0.0' }),
+    );
+    // npm/ dir exists but no napi config: must NOT be picked up.
+    await writeFile(
+      join(tmpDir, 'packages', 'plain', 'npm', 'darwin-x64', 'package.json'),
+      JSON.stringify({ name: 'plain-darwin-x64', version: '1.0.0' }),
+    );
+
+    const packages = await adapter.discoverPackages(tmpDir);
+    assert.deepStrictEqual(
+      packages.map((p) => p.name).sort(),
+      ['plain'],
+    );
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('updateVersions rewrites cross-package deps to new version', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-deps-'));
+  try {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({
+        name: 'root',
+        version: '1.0.0',
+        workspaces: ['packages/*'],
+        optionalDependencies: { 'pkg-a': '1.0.0', 'pkg-b': '1.0.0', lodash: '^4.0.0' },
+      }),
+    );
+    await mkdir(join(tmpDir, 'packages', 'a'), { recursive: true });
+    await mkdir(join(tmpDir, 'packages', 'b'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'packages', 'a', 'package.json'),
+      JSON.stringify({ name: 'pkg-a', version: '1.0.0' }),
+    );
+    await writeFile(
+      join(tmpDir, 'packages', 'b', 'package.json'),
+      JSON.stringify({
+        name: 'pkg-b',
+        version: '1.0.0',
+        dependencies: { 'pkg-a': '1.0.0', external: '^2.0.0' },
+        peerDependencies: { 'pkg-a': 'workspace:*' },
+      }),
+    );
+
+    const packages = await adapter.discoverPackages(tmpDir);
+    await adapter.updateVersions(tmpDir, '2.0.0', packages);
+
+    const root = JSON.parse(await readFile(join(tmpDir, 'package.json'), 'utf-8'));
+    assert.strictEqual(root.version, '2.0.0');
+    assert.strictEqual(root.optionalDependencies['pkg-a'], '2.0.0');
+    assert.strictEqual(root.optionalDependencies['pkg-b'], '2.0.0');
+    assert.strictEqual(root.optionalDependencies.lodash, '^4.0.0');
+
+    const b = JSON.parse(await readFile(join(tmpDir, 'packages', 'b', 'package.json'), 'utf-8'));
+    assert.strictEqual(b.version, '2.0.0');
+    assert.strictEqual(b.dependencies['pkg-a'], '2.0.0');
+    assert.strictEqual(b.dependencies.external, '^2.0.0');
+    // workspace: protocol should be left alone
+    assert.strictEqual(b.peerDependencies['pkg-a'], 'workspace:*');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

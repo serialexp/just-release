@@ -19,6 +19,12 @@ export interface CommitInfo {
   packages: string[];
   files: string[];
   rawMessage: string; // First line of original commit message (for fallback display)
+  /**
+   * Value of a `Release-As:` footer (case-insensitive) when present, e.g.
+   * `Release-As: stable` (graduate from prerelease) or `Release-As: 1.0.0`
+   * (force exact version). null when the footer is absent.
+   */
+  releaseAs: string | null;
 }
 
 export async function analyzeCommits(
@@ -106,6 +112,18 @@ export async function analyzeCommits(
       parsed.notes.some((note: any) => note.title === 'BREAKING CHANGE') ||
       commit.message.includes('!:');
 
+    // Look for a `Release-As:` footer. Conventional-commits-parser collects
+    // any "Title: text" trailer-style footer into `notes`. We match
+    // case-insensitively so contributors can write `release-as`, `Release-As`,
+    // or `RELEASE-AS` and still hit the same code path.
+    const releaseAsNote = parsed.notes.find(
+      (note: any) => typeof note.title === 'string' && note.title.toLowerCase() === 'release-as',
+    );
+    const releaseAs =
+      releaseAsNote && typeof releaseAsNote.text === 'string'
+        ? releaseAsNote.text.trim() || null
+        : null;
+
     commits.push({
       hash: commit.hash,
       type: parsed.type ?? null,
@@ -116,6 +134,7 @@ export async function analyzeCommits(
       packages: Array.from(affectedPackages),
       files,
       rawMessage: commit.message, // First line of the original commit message
+      releaseAs,
     });
   }
 
