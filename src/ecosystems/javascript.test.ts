@@ -757,41 +757,11 @@ test('updateVersions rewrites cross-package deps to new version', async () => {
   }
 });
 
-test('checkPublishPrerequisites accepts NPM_TOKEN', async () => {
-  const tmpDir = await mkdtemp(join(tmpdir(), 'test-prereq-'));
-  const prev = { ...process.env };
-  // Strip any inherited auth so we control the surface.
-  delete process.env.NODE_AUTH_TOKEN;
-  delete process.env.NPM_TOKEN;
-  delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-  delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
-  try {
-    process.env.NPM_TOKEN = 'x';
-    const result = await adapter.checkPublishPrerequisites(tmpDir);
-    assert.strictEqual(result.ready, true);
-  } finally {
-    process.env = prev;
-    rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('checkPublishPrerequisites accepts GitHub OIDC env vars (trusted publishing)', async () => {
-  const tmpDir = await mkdtemp(join(tmpdir(), 'test-prereq-'));
-  const prev = { ...process.env };
-  delete process.env.NODE_AUTH_TOKEN;
-  delete process.env.NPM_TOKEN;
-  try {
-    process.env.ACTIONS_ID_TOKEN_REQUEST_URL = 'https://example/oidc';
-    process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = 'tok';
-    const result = await adapter.checkPublishPrerequisites(tmpDir);
-    assert.strictEqual(result.ready, true);
-  } finally {
-    process.env = prev;
-    rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('checkPublishPrerequisites bails when no auth at all', async () => {
+test('checkPublishPrerequisites does not gate on npm auth env vars', async () => {
+  // just-release should never inspect NPM_TOKEN / NODE_AUTH_TOKEN / OIDC
+  // env vars. Trusted publishing (OIDC) is the recommended path; the npm
+  // CLI handles auth resolution itself, and the legacy token fallback is
+  // also picked up by npm without our involvement.
   const tmpDir = await mkdtemp(join(tmpdir(), 'test-prereq-'));
   const prev = { ...process.env };
   delete process.env.NODE_AUTH_TOKEN;
@@ -800,7 +770,7 @@ test('checkPublishPrerequisites bails when no auth at all', async () => {
   delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   try {
     const result = await adapter.checkPublishPrerequisites(tmpDir);
-    assert.strictEqual(result.ready, false);
+    assert.strictEqual(result.ready, true);
   } finally {
     process.env = prev;
     rmSync(tmpDir, { recursive: true, force: true });

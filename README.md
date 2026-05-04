@@ -297,7 +297,26 @@ Below are publish workflow examples for each ecosystem.
 
 `just-release` detects your package manager (pnpm/yarn/npm) and runs the appropriate publish command. It skips private packages automatically.
 
-**Authentication:** Set `NODE_AUTH_TOKEN` or `NPM_TOKEN` as an environment variable. If neither is set, npm publishing is skipped.
+**Authentication:** use [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) — OIDC, no static tokens. just-release does not inspect or require any npm token; the npm CLI handles auth on its own.
+
+##### Set up trusted publishing on npmjs.org
+
+1. Go to https://www.npmjs.com/package/YOUR-PACKAGE-NAME/access
+2. Click **Publishing access** → **Add a trusted publisher**
+3. Configure:
+   - **Source**: GitHub Actions
+   - **Repository owner**: Your GitHub username/org (case-sensitive!)
+   - **Repository name**: Your repo name
+   - **Workflow filename**: `publish.yml` (optional but recommended)
+   - **Environment**: leave blank
+
+**Important:**
+- Your repository must be **public** for provenance to work.
+- `package.json` must have a `repository` field matching your GitHub repo **exactly**:
+  - Format: `https://github.com/Owner/repo-name` (no `git+` prefix, no `.git` suffix)
+  - Case-sensitive: Owner name must match exactly (e.g., `Aeolun`, not `aeolun`).
+
+##### Publish workflow
 
 Create `.github/workflows/publish.yml`:
 
@@ -312,7 +331,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write
+  id-token: write # required for npm trusted publishing (OIDC)
 
 jobs:
   publish:
@@ -342,34 +361,9 @@ jobs:
         env:
           CI: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
-##### NPM Authentication Options
-
-**Option 1: Trusted Publishing (Recommended)**
-
-Trusted publishing uses OIDC — no npm tokens required. Works with npmjs.org or any registry that supports it.
-
-1. Go to https://www.npmjs.com/package/YOUR-PACKAGE-NAME/access
-2. Click "Publishing access" → "Add a trusted publisher"
-3. Configure:
-   - **Source**: GitHub Actions
-   - **Repository owner**: Your GitHub username/org (case-sensitive!)
-   - **Repository name**: Your repo name
-   - **Workflow filename**: `publish.yml` (optional but recommended)
-   - **Environment**: leave blank
-
-**Important:**
-- Your repository must be **public** for provenance to work
-- `package.json` must have a `repository` field matching your GitHub repo **exactly**:
-  - Format: `https://github.com/Owner/repo-name` (no `git+` prefix, no `.git` suffix)
-  - Case-sensitive: Owner name must match exactly (e.g., `Aeolun`, not `aeolun`)
-
-**Option 2: NPM Token**
-
-1. Create an npm access token at https://www.npmjs.com/settings/YOUR-USERNAME/tokens
-2. Add it as a repository secret named `NPM_TOKEN` in your GitHub repository settings
+No `NPM_TOKEN` secret is needed or recommended — auth comes from the OIDC token minted by the workflow's `id-token: write` permission.
 
 ---
 

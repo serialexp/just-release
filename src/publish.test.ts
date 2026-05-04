@@ -46,7 +46,7 @@ test('publishAllPackages skips ecosystem when prerequisites not met', async () =
     displayName: 'JavaScript',
     checkPublishPrerequisites: async () => ({
       ready: false,
-      reason: 'NODE_AUTH_TOKEN not set',
+      reason: 'pnpm is not installed',
     }),
   });
 
@@ -54,7 +54,7 @@ test('publishAllPackages skips ecosystem when prerequisites not met', async () =
 
   assert.strictEqual(summaries.length, 1);
   assert.strictEqual(summaries[0].skipped, true);
-  assert.strictEqual(summaries[0].skipReason, 'NODE_AUTH_TOKEN not set');
+  assert.strictEqual(summaries[0].skipReason, 'pnpm is not installed');
 });
 
 test('publishAllPackages filters out private packages', async () => {
