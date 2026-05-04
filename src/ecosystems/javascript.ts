@@ -5,6 +5,7 @@ import { readFile, writeFile, access, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { glob } from 'glob';
+import semver from 'semver';
 import type {
   EcosystemAdapter,
   WorkspacePackage,
@@ -32,23 +33,59 @@ export async function detectJsPackageManager(
   return 'npm';
 }
 
+/**
+ * Derive the npm dist-tag for a given semver. Stable releases publish under
+ * the default `latest` tag (no `--tag` argument needed). Prereleases must
+ * publish under a non-`latest` tag — otherwise `npm publish` either errors
+ * (newer npm) or silently moves `latest` to the prerelease (older npm),
+ * which would shadow the stable release for unsuspecting installers.
+ *
+ * Returns the prerelease identifier when present (e.g. `0.1.0-alpha.18` →
+ * `alpha`). Falls back to `'prerelease'` when the version is a prerelease
+ * with no string identifier (e.g. `1.0.0-0`). Returns null for stable.
+ */
+export function getPrereleaseDistTag(version: string): string | null {
+  const pre = semver.prerelease(version);
+  if (!pre || pre.length === 0) return null;
+  return typeof pre[0] === 'string' ? pre[0] : 'prerelease';
+}
+
 export function getPublishCommand(
   pm: JsPackageManager,
-  provenance: boolean = false
+  provenance: boolean = false,
+  version?: string
 ): { command: string; args: string[] } {
+  const distTag = version ? getPrereleaseDistTag(version) : null;
+  const tagArgs = distTag ? ['--tag', distTag] : [];
   switch (pm) {
     case 'pnpm':
       return {
         command: 'pnpm',
-        args: ['publish', '--no-git-checks', '--access', 'public', ...(provenance ? ['--provenance'] : [])],
+        args: [
+          'publish',
+          '--no-git-checks',
+          '--access',
+          'public',
+          ...tagArgs,
+          ...(provenance ? ['--provenance'] : []),
+        ],
       };
     case 'yarn':
       // Yarn does not support --provenance
-      return { command: 'yarn', args: ['npm', 'publish', '--access', 'public'] };
+      return {
+        command: 'yarn',
+        args: ['npm', 'publish', '--access', 'public', ...tagArgs],
+      };
     case 'npm':
       return {
         command: 'npm',
-        args: ['publish', '--access', 'public', ...(provenance ? ['--provenance'] : [])],
+        args: [
+          'publish',
+          '--access',
+          'public',
+          ...tagArgs,
+          ...(provenance ? ['--provenance'] : []),
+        ],
       };
   }
 }
@@ -336,7 +373,7 @@ export class JavaScriptAdapter implements EcosystemAdapter {
 
   async publishPackages(
     rootPath: string,
-    _version: string,
+    version: string,
     packages: WorkspacePackage[],
     exec: ExecFn = defaultExec
   ): Promise<PublishResult[]> {
@@ -351,7 +388,7 @@ export class JavaScriptAdapter implements EcosystemAdapter {
         warnings.push(`Publishing ${pkg.name} without provenance: ${provenance.reason}`);
       }
 
-      const { command, args } = getPublishCommand(pm, provenance.supported);
+      const { command, args } = getPublishCommand(pm, provenance.supported, version);
 
       try {
         await exec(command, args, { cwd: pkg.path });

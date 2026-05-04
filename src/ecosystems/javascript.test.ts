@@ -313,6 +313,48 @@ test('getPublishCommand returns correct npm command with provenance', () => {
   assert.deepStrictEqual(args, ['publish', '--access', 'public', '--provenance']);
 });
 
+test('getPublishCommand omits --tag for stable versions', () => {
+  // Sanity check: passing an explicit stable version should not introduce
+  // a --tag flag (npm defaults to `latest`, which is what we want).
+  const { args } = getPublishCommand('npm', false, '1.2.3');
+  assert.ok(!args.includes('--tag'), `expected no --tag, got: ${args.join(' ')}`);
+});
+
+test('getPublishCommand adds --tag <id> for prereleases (npm)', () => {
+  const { command, args } = getPublishCommand('npm', false, '0.1.0-alpha.18');
+  assert.strictEqual(command, 'npm');
+  assert.deepStrictEqual(args, ['publish', '--access', 'public', '--tag', 'alpha']);
+});
+
+test('getPublishCommand adds --tag <id> for prereleases (pnpm) and keeps --provenance after', () => {
+  const { command, args } = getPublishCommand('pnpm', true, '2.0.0-rc.0');
+  assert.strictEqual(command, 'pnpm');
+  assert.deepStrictEqual(args, [
+    'publish',
+    '--no-git-checks',
+    '--access',
+    'public',
+    '--tag',
+    'rc',
+    '--provenance',
+  ]);
+});
+
+test('getPublishCommand adds --tag <id> for prereleases (yarn)', () => {
+  const { command, args } = getPublishCommand('yarn', false, '1.0.0-beta.3');
+  assert.strictEqual(command, 'yarn');
+  assert.deepStrictEqual(args, ['npm', 'publish', '--access', 'public', '--tag', 'beta']);
+});
+
+test('getPublishCommand falls back to "prerelease" tag when identifier is numeric', () => {
+  // semver allows numeric-only prereleases like 1.0.0-0 — we still need
+  // *some* tag so npm doesn't try to update `latest`.
+  const { args } = getPublishCommand('npm', false, '1.0.0-0');
+  const tagIdx = args.indexOf('--tag');
+  assert.notStrictEqual(tagIdx, -1, 'expected --tag to be present');
+  assert.strictEqual(args[tagIdx + 1], 'prerelease');
+});
+
 // --- publishPackages tests ---
 
 test('publishPackages calls exec with correct command for each package', async () => {
