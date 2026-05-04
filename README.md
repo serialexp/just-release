@@ -234,6 +234,15 @@ on:
   push:
     branches:
       - main
+  # Manually start a prerelease cycle (alpha/beta/rc) from a stable version.
+  # Once the first prerelease lands, subsequent push-triggered runs auto-
+  # increment the counter — you don't need to dispatch again.
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Start a prerelease cycle with this tag (e.g. alpha, beta, rc). Leave blank for a normal release.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -244,8 +253,9 @@ jobs:
     runs-on: ubuntu-latest
     # Skip if this is a release commit (squash merge) or merge of a release branch (regular merge)
     if: >-
-      !startsWith(github.event.head_commit.message, 'release:') &&
-      !(startsWith(github.event.head_commit.message, 'Merge') && contains(github.event.head_commit.message, 'release/'))
+      github.event_name == 'workflow_dispatch' ||
+      (!startsWith(github.event.head_commit.message, 'release:') &&
+       !(startsWith(github.event.head_commit.message, 'Merge') && contains(github.event.head_commit.message, 'release/')))
     steps:
       - uses: actions/checkout@v4
         with:
@@ -259,7 +269,16 @@ jobs:
         env:
           CI: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only set on workflow_dispatch with a non-empty prerelease input.
+          # On push events this is empty and just-release uses normal logic
+          # (or auto-counter-bumps if the current version is already a prerelease).
+          JUST_RELEASE_PRERELEASE: ${{ github.event.inputs.prerelease }}
 ```
+
+To **graduate from prerelease back to stable**, you don't need a workflow
+input — push a commit with a `Release-As: stable` footer (see
+[Prerelease Versions](#prerelease-versions-alpha-beta-rc)) and the next
+release run will strip the prerelease segment.
 
 ### Publishing
 
