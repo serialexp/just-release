@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.1 (2026-05-04)
+
+### Bug Fixes
+
+- accept GitHub OIDC env vars as npm auth (trusted publishing)
+
+### Documentation
+
+- show workflow_dispatch input for starting prerelease cycle
+
 ## 0.13.0 (2026-05-04)
 
 ### Features
