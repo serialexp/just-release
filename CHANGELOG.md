@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.2 (2026-05-04)
+
+### Bug Fixes
+
+- force initial branch to main in post-release fixture
+- stop gating npm publish on NPM_TOKEN; recommend trusted publishing only
+
 ## 0.13.1 (2026-05-04)
 
 ### Bug Fixes
