@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.3 (2026-05-04)
+
+### Bug Fixes
+
+- suppress noisy 404 from GitHub release existence probe
+- only inspect run scripts, not raw file text
+
+### Chores
+
+- bump GitHub Actions to Node 24-compatible versions
+
 ## 0.13.2 (2026-05-04)
 
 ### Bug Fixes
