@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.4 (2026-05-04)
+
+### Bug Fixes
+
+- pass --tag <prerelease-id> to npm publish for prereleases
+
 ## 0.13.3 (2026-05-04)
 
 ### Bug Fixes
