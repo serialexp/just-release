@@ -17,7 +17,11 @@ async function setupGitRepo(): Promise<{ dir: string; git: SimpleGit }> {
   tmpDirs.push(dir);
   const git = simpleGit(dir);
 
-  await git.init();
+  // Force the initial branch to `main` regardless of the user's
+  // `init.defaultBranch` setting — the regular-merge test below checks
+  // out `main` explicitly, and would fail on machines where git defaults
+  // to `master`.
+  await git.init(['--initial-branch=main']);
   await git.addConfig('user.name', 'Test User');
   await git.addConfig('user.email', 'test@example.com');
 
