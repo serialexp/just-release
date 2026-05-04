@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0 (2026-05-04)
+
+### Features
+
+- prerelease lifecycle, NAPI sub-package discovery, manifest version fallback
+
 ## 0.12.0 (2026-04-23)
 
 ### Features
