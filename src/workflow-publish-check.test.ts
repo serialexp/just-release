@@ -144,6 +144,66 @@ jobs:
   );
 });
 
+test('ignores publish commands mentioned in YAML comments', async () => {
+  await withTempWorkflow(
+    `
+# We used to do \`npm publish\` here, just-release handles it now.
+jobs:
+  release:
+    # This job no longer needs to call npm publish directly.
+    steps:
+      # Reminder: don't put npm publish back here.
+      - name: Install
+        run: pnpm install
+      - run: npx just-release
+`,
+    async (cwd, env) => {
+      const result = await detectWorkflowPublishSteps(cwd, env);
+      assert.strictEqual(result.hasExternalPublish, false);
+      assert.deepStrictEqual(result.matches, []);
+    }
+  );
+});
+
+test('ignores publish commands inside whole-line shell comments in run blocks', async () => {
+  await withTempWorkflow(
+    `
+jobs:
+  release:
+    steps:
+      - name: Install
+        run: |
+          # npm publish disabled until trusted publishing is configured
+          pnpm install
+`,
+    async (cwd, env) => {
+      const result = await detectWorkflowPublishSteps(cwd, env);
+      assert.strictEqual(result.hasExternalPublish, false);
+    }
+  );
+});
+
+test('does not match publish-like strings in non-run fields', async () => {
+  // name:, env:, and with: should never be inspected — only shell bodies.
+  await withTempWorkflow(
+    `
+jobs:
+  release:
+    steps:
+      - name: "Reminder: do not run npm publish here"
+        env:
+          NOTE: "cargo publish is handled by just-release"
+        with:
+          comment: "yarn npm publish handled elsewhere"
+        run: pnpm install
+`,
+    async (cwd, env) => {
+      const result = await detectWorkflowPublishSteps(cwd, env);
+      assert.strictEqual(result.hasExternalPublish, false);
+    }
+  );
+});
+
 test('returns no match for workflow without publish steps', async () => {
   await withTempWorkflow(
     `
