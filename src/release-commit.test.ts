@@ -50,6 +50,29 @@ describe('isReleaseCommit', () => {
     assert.strictEqual(isReleaseCommit('fix: released feature had a bug'), false);
   });
 
+  it('should not match dependency bumps that mention a tool whose name contains "release"', () => {
+    // Regression: the previous substring-based regex matched on
+    // "release 0.13.2" inside the package name "just-release", causing the
+    // post-release-mode detector to fire on a routine dep bump and try to
+    // republish the prior version.
+    assert.strictEqual(
+      isReleaseCommit('chore(deps): bump just-release 0.13.2 → 0.13.4'),
+      false
+    );
+    assert.strictEqual(
+      isReleaseCommit('chore(deps): bump just-release from 0.13.2 to 0.13.4'),
+      false
+    );
+    assert.strictEqual(
+      isReleaseCommit('chore: update @aeolun/just-release to 0.13.4'),
+      false
+    );
+    assert.strictEqual(
+      isReleaseCommit('fix(release-notes): correct typo in 1.2.3 entry'),
+      false
+    );
+  });
+
   it('should handle multi-line commit messages', () => {
     const message = 'chore: release v1.2.3\n\nThis is a release commit';
     assert.strictEqual(isReleaseCommit(message), true);
