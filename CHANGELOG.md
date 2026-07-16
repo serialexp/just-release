@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.6 (2026-07-16)
+
+### Bug Fixes
+
+- parse Release-As footer and anchor range to latest tag
+- prefer a valid Release-As footer over keyword prose
+
 ## 0.13.5 (2026-05-04)
 
 ### Bug Fixes
