@@ -2,6 +2,7 @@
 // ABOUTME: Maps file changes to workspace packages for changelog generation
 
 import { simpleGit, SimpleGit, DefaultLogFields } from 'simple-git';
+import semver from 'semver';
 import * as conventionalCommitsParser from 'conventional-commits-parser';
 import { WorkspacePackage } from './workspace.js';
 import { isReleaseCommit } from './release-commit.js';
@@ -162,13 +163,26 @@ export async function analyzeCommits(
     // any "Title: text" trailer-style footer into `notes`. We match
     // case-insensitively so contributors can write `release-as`, `Release-As`,
     // or `RELEASE-AS` and still hit the same code path.
-    const releaseAsNote = parsed.notes.find(
-      (note: any) => typeof note.title === 'string' && note.title.toLowerCase() === 'release-as',
-    );
+    //
+    // A body sentence that merely *begins* with the keyword (e.g. "Release-As
+    // pins the first release, since…") is also collected as a note. To keep such
+    // prose from shadowing a real `Release-As: <version>` footer, prefer the
+    // first note whose value is a recognized pin (valid semver or "stable"),
+    // and only fall back to the first note otherwise so a lone malformed value
+    // still surfaces the downstream warning.
+    const releaseAsValues = parsed.notes
+      .filter(
+        (note: any) =>
+          typeof note.title === 'string' && note.title.toLowerCase() === 'release-as',
+      )
+      .map((note: any) => (typeof note.text === 'string' ? note.text.trim() : ''))
+      .filter((text: string) => text.length > 0);
     const releaseAs =
-      releaseAsNote && typeof releaseAsNote.text === 'string'
-        ? releaseAsNote.text.trim() || null
-        : null;
+      releaseAsValues.find(
+        (v: string) => v.toLowerCase() === 'stable' || semver.valid(v) !== null,
+      ) ??
+      releaseAsValues[0] ??
+      null;
 
     commits.push({
       hash: commit.hash,

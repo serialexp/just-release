@@ -296,6 +296,37 @@ test('analyzeCommits extracts Release-As case-insensitively', async () => {
   }
 });
 
+test('analyzeCommits prefers a valid Release-As footer over prose that begins with the keyword', async () => {
+  const tmpDir = await setupGitRepo();
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await writeFile(
+      join(tmpDir, 'packages', 'pkg-a', 'index.js'),
+      '// pkg-a shadowed'
+    );
+    await git.add('.');
+    // Prose that starts with the keyword must NOT shadow the real footer.
+    await git.commit(
+      'feat: ready to ship\n\n' +
+        'Release-As pins the first release, since this repo has no prior\n' +
+        'release: commit to anchor on.\n\n' +
+        'Release-As: 2.0.0'
+    );
+
+    const workspacePackages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'packages', 'pkg-a') },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].releaseAs, '2.0.0');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('analyzeCommits has no Release-As when the footer is absent', async () => {
   const tmpDir = await setupGitRepo();
   const git: SimpleGit = simpleGit(tmpDir);
