@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0 (2026-07-16)
+
+### Features
+
+- show registry and version in publish output
+
 ## 0.13.6 (2026-07-16)
 
 ### Bug Fixes
