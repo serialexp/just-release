@@ -249,6 +249,148 @@ test('analyzeCommits sets rawMessage for conventional commits too', async () => 
   }
 });
 
+test('analyzeCommits extracts the Release-As footer', async () => {
+  const tmpDir = await setupGitRepo();
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await writeFile(
+      join(tmpDir, 'packages', 'pkg-a', 'index.js'),
+      '// pkg-a release-as'
+    );
+    await git.add('.');
+    await git.commit('feat: ready to ship\n\nRelease-As: 2.0.0');
+
+    const workspacePackages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'packages', 'pkg-a') },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].releaseAs, '2.0.0');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('analyzeCommits extracts Release-As case-insensitively', async () => {
+  const tmpDir = await setupGitRepo();
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await writeFile(join(tmpDir, 'README.md'), '# graduate');
+    await git.add('.');
+    await git.commit('chore: graduate prerelease\n\nrelease-as: stable');
+
+    const workspacePackages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'packages', 'pkg-a') },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].releaseAs, 'stable');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('analyzeCommits has no Release-As when the footer is absent', async () => {
+  const tmpDir = await setupGitRepo();
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await writeFile(
+      join(tmpDir, 'packages', 'pkg-a', 'index.js'),
+      '// pkg-a plain'
+    );
+    await git.add('.');
+    await git.commit('feat: no footer here');
+
+    const workspacePackages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'packages', 'pkg-a') },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].releaseAs, null);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('analyzeCommits falls back to the latest semver tag when no release commit exists', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-git-'));
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await git.init();
+    await git.addConfig('user.name', 'Test User');
+    await git.addConfig('user.email', 'test@example.com');
+
+    // Single-package repo whose history has a manual tag but NO release: commit
+    // (the classic "migrating off manual tagging" situation).
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'my-app', version: '1.0.0' })
+    );
+    await git.add('package.json');
+    await git.commit('feat: pre-tag feature'); // before the tag → excluded
+    await git.addTag('v1.0.0');
+
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'index.ts'), 'console.log("hello")');
+    await git.add('.');
+    await git.commit('feat: add hello world'); // after the tag → included
+
+    const workspacePackages = [
+      { name: 'my-app', version: '1.0.0', path: tmpDir },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    // Only the commit after the tag; the entire pre-tag history is excluded.
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].subject, 'add hello world');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('analyzeCommits analyzes all history when neither release commit nor tag exists', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-git-'));
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await git.init();
+    await git.addConfig('user.name', 'Test User');
+    await git.addConfig('user.email', 'test@example.com');
+
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'my-app', version: '0.0.0' })
+    );
+    await git.add('package.json');
+    await git.commit('feat: first');
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'index.ts'), '// second');
+    await git.add('.');
+    await git.commit('feat: second');
+
+    const workspacePackages = [
+      { name: 'my-app', version: '0.0.0', path: tmpDir },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 2);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('analyzeCommits recognizes flexible release commit formats', async () => {
   const tmpDir = await mkdtemp(join(tmpdir(), 'test-git-'));
   const git: SimpleGit = simpleGit(tmpDir);
