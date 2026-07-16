@@ -24,6 +24,10 @@ export type ExecFn = (
 export interface PublishResult {
   packageName: string;
   success: boolean;
+  /** The version that was published (echoes the release version). */
+  version?: string;
+  /** Human-readable registry the package was published to (e.g. a registry URL or "crates.io"). */
+  registry?: string;
   error?: string;
   warnings?: string[];
 }

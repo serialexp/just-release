@@ -511,6 +511,8 @@ test('publishPackages calls cargo publish -p for each crate', async () => {
 
     assert.strictEqual(results.length, 1);
     assert.ok(results[0].success);
+    assert.strictEqual(results[0].version, '1.0.0');
+    assert.strictEqual(results[0].registry, 'crates.io');
     assert.strictEqual(calls.length, 1);
     assert.strictEqual(calls[0].command, 'cargo');
     assert.deepStrictEqual(calls[0].args, ['publish', '-p', 'crate-a']);

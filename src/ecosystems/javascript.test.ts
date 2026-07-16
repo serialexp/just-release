@@ -9,6 +9,8 @@ import {
   getPublishCommand,
   checkProvenanceSupport,
   extractGitHubRepo,
+  getPublishRegistry,
+  DEFAULT_NPM_REGISTRY,
 } from './javascript.js';
 import type { ExecFn } from './types.js';
 import { mkdtemp, writeFile, mkdir, readFile } from 'node:fs/promises';
@@ -384,6 +386,9 @@ test('publishPackages calls exec with correct command for each package', async (
 
     assert.strictEqual(results.length, 2);
     assert.ok(results.every((r) => r.success));
+    // Results echo the published version and destination registry
+    assert.ok(results.every((r) => r.version === '1.0.0'));
+    assert.ok(results.every((r) => r.registry === DEFAULT_NPM_REGISTRY));
     assert.strictEqual(calls.length, 2);
     assert.strictEqual(calls[0].command, 'pnpm');
     assert.deepStrictEqual(calls[0].args, ['publish', '--no-git-checks', '--access', 'public']);
@@ -478,6 +483,77 @@ test('publishPackages uses npm command when no lockfile present', async () => {
 
     assert.strictEqual(calls[0].command, 'npm');
     assert.deepStrictEqual(calls[0].args, ['publish', '--access', 'public']);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('publishPackages reports publishConfig.registry as the destination', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    await mkdir(join(tmpDir, 'a'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'a', 'package.json'),
+      JSON.stringify({
+        name: 'pkg-a',
+        version: '1.0.0',
+        publishConfig: { registry: 'https://npm.internal.example.com' },
+      })
+    );
+
+    const mockExec: ExecFn = async () => ({ stdout: '', stderr: '' });
+    const packages = [
+      { name: 'pkg-a', version: '2.3.4', path: join(tmpDir, 'a'), ecosystem: 'javascript' as const },
+    ];
+
+    const results = await adapter.publishPackages(tmpDir, '2.3.4', packages, mockExec);
+
+    assert.strictEqual(results[0].version, '2.3.4');
+    assert.strictEqual(results[0].registry, 'https://npm.internal.example.com');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// --- getPublishRegistry tests ---
+
+test('getPublishRegistry returns publishConfig.registry when set', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({
+        name: 'pkg',
+        version: '1.0.0',
+        publishConfig: { registry: 'https://npm.internal.example.com' },
+      })
+    );
+    assert.strictEqual(
+      await getPublishRegistry(tmpDir),
+      'https://npm.internal.example.com'
+    );
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('getPublishRegistry falls back to the default npm registry', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'pkg', version: '1.0.0' })
+    );
+    assert.strictEqual(await getPublishRegistry(tmpDir), DEFAULT_NPM_REGISTRY);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('getPublishRegistry falls back when package.json is missing', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    assert.strictEqual(await getPublishRegistry(tmpDir), DEFAULT_NPM_REGISTRY);
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }

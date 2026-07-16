@@ -125,6 +125,27 @@ export function extractGitHubRepo(
   return null;
 }
 
+export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org';
+
+/**
+ * Determine the registry a package publishes to. Honours
+ * `publishConfig.registry` in the package's own package.json (the value npm
+ * itself consults), falling back to the public npm registry.
+ */
+export async function getPublishRegistry(
+  packagePath: string
+): Promise<string> {
+  try {
+    const content = await readFile(join(packagePath, 'package.json'), 'utf-8');
+    const pkg = JSON.parse(content);
+    const registry = pkg?.publishConfig?.registry;
+    if (typeof registry === 'string' && registry.length > 0) {
+      return registry;
+    }
+  } catch {}
+  return DEFAULT_NPM_REGISTRY;
+}
+
 /**
  * Check whether a package supports npm provenance.
  * Requires a `repository` field in package.json pointing to the same GitHub
@@ -389,12 +410,15 @@ export class JavaScriptAdapter implements EcosystemAdapter {
       }
 
       const { command, args } = getPublishCommand(pm, provenance.supported, version);
+      const registry = await getPublishRegistry(pkg.path);
 
       try {
         await exec(command, args, { cwd: pkg.path });
         results.push({
           packageName: pkg.name,
           success: true,
+          version,
+          registry,
           ...(warnings.length > 0 ? { warnings } : {}),
         });
       } catch (err) {

@@ -357,7 +357,12 @@ export class RustAdapter implements EcosystemAdapter {
 
       try {
         await exec('cargo', ['publish', '-p', pkg.name], { cwd: rootPath });
-        results.push({ packageName: pkg.name, success: true });
+        results.push({
+          packageName: pkg.name,
+          success: true,
+          version,
+          registry: 'crates.io',
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         results.push({ packageName: pkg.name, success: false, error: message });

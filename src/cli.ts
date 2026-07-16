@@ -80,7 +80,13 @@ async function runPostRelease(cwd: string) {
       } else {
         for (const result of summary.results) {
           if (result.success) {
-            console.log(`   ✅ Published ${result.packageName}`);
+            const versioned = result.version
+              ? `${result.packageName}@${result.version}`
+              : result.packageName;
+            const destination = result.registry
+              ? ` → ${result.registry}`
+              : '';
+            console.log(`   ✅ Published ${versioned}${destination}`);
           } else {
             console.log(
               `   ❌ Failed to publish ${result.packageName}: ${result.error}`
