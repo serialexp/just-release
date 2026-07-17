@@ -62,7 +62,7 @@ Entry point that orchestrates the release process in sequential steps:
 8. Commit and push
 9. Create/update GitHub PR
 
-**Post-release mode**: When run on a commit starting with "release:", automatically creates a GitHub release with changelog notes.
+**Post-release mode**: When run on a commit starting with "release:", automatically creates a GitHub release with changelog notes and attaches the workflow run's uploaded artifacts as release assets.
 
 ### Ecosystem Adapters (src/ecosystems/)
 
@@ -134,6 +134,12 @@ The ecosystem adapter pattern allows supporting multiple languages. Each adapter
 - Creates or updates PRs for release branches
 - Closes old release PRs when creating new ones
 - Creates GitHub releases with changelog notes (post-release mode)
+- `uploadReleaseAssets` attaches files to a release (delete-then-upload by name, so re-runs are idempotent)
+
+**artifacts.ts** - Release Assets from Workflow Artifacts
+- `collectRunArtifactFiles` lists the current Actions run's uploaded artifacts (`GITHUB_RUN_ID`), downloads each zip, and extracts the files
+- `extractZip` unpacks a zip in memory via `fflate` (pure, unit-tested)
+- Wired in `cli.ts` post-release mode: every run artifact becomes a release asset. Needs the `actions: read` permission on the publishing job.
 
 **colors.ts** - Terminal Colors
 - Provides ANSI color codes for terminal output

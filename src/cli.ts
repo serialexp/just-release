@@ -11,7 +11,13 @@ import {
   updatePackageVersions,
   commitAndPush,
 } from './git.js';
-import { createOrUpdatePR, createOrUpdateGitHubRelease } from './github.js';
+import {
+  createOrUpdatePR,
+  createOrUpdateGitHubRelease,
+  uploadReleaseAssets,
+  getRepoInfo,
+} from './github.js';
+import { collectRunArtifactFiles } from './artifacts.js';
 import { getColors } from './colors.js';
 import { generateChangelogSection, groupCommitsByPackage } from './changelog.js';
 import { simpleGit } from 'simple-git';
@@ -128,7 +134,7 @@ async function runPostRelease(cwd: string) {
   }
 
   // Create or update GitHub release
-  const { url: releaseUrl, isNew } = await createOrUpdateGitHubRelease(
+  const { url: releaseUrl, isNew, releaseId } = await createOrUpdateGitHubRelease(
     cwd,
     version,
     releaseNotes,
@@ -140,6 +146,30 @@ async function runPostRelease(cwd: string) {
     console.log('✅ GitHub release created!\n');
   } else {
     console.log('✅ GitHub release updated!\n');
+  }
+
+  // Attach this workflow run's uploaded artifacts as release assets. Only runs
+  // inside GitHub Actions (needs the run id and `actions: read`); local
+  // post-release runs skip this silently.
+  if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_RUN_ID) {
+    const runId = Number(process.env.GITHUB_RUN_ID);
+    console.log('📎 Attaching workflow artifacts to release...');
+    try {
+      const repoInfo = await getRepoInfo(cwd);
+      const files = await collectRunArtifactFiles(githubToken, repoInfo, runId);
+      if (files.length === 0) {
+        console.log('   No workflow artifacts found for this run.\n');
+      } else {
+        await uploadReleaseAssets(githubToken, repoInfo, releaseId, files);
+        for (const f of files) {
+          console.log(`   • ${f.name} (${f.data.length} bytes)`);
+        }
+        console.log(`✅ Attached ${files.length} asset(s)\n`);
+      }
+    } catch (error) {
+      // A failed asset upload shouldn't undo a successful release.
+      console.error(`⚠️  Failed to attach artifacts: ${(error as Error).message}\n`);
+    }
   }
 
   if (publishFailed) {

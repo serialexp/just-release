@@ -286,10 +286,59 @@ When `just-release` runs in post-release mode (i.e., the current commit is a `re
 
 1. **Publishes packages** to their respective registries (npm, crates.io)
 2. **Creates a GitHub release** with changelog notes and a `vX.Y.Z` tag
+3. **Attaches this workflow run's uploaded artifacts** to that release as assets
 
 You just need to provide the right environment variables and ensure your project builds before `just-release` runs.
 
 Below are publish workflow examples for each ecosystem.
+
+---
+
+#### Attaching release assets
+
+Any file uploaded with [`actions/upload-artifact`](https://github.com/actions/upload-artifact) during the **same workflow run** is attached to the GitHub release as a downloadable asset — no configuration or globs. `just-release` lists the run's artifacts (via `GITHUB_RUN_ID`), downloads and unzips them, and uploads each contained file. A same-named asset is replaced, so re-runs are idempotent.
+
+This works across separate jobs: build each platform on its own runner, `upload-artifact` the result, and let the `just-release` job gather them all — useful when native toolchains (e.g. cgo) force per-platform builds.
+
+Two requirements:
+
+- The job running `just-release` needs the **`actions: read`** permission (to read the run's artifacts) in addition to `contents: write`.
+- Every uploaded artifact becomes an asset. If you don't want a file attached, don't `upload-artifact` it in the release run.
+
+```yaml
+permissions:
+  contents: write
+  actions: read # required to read this run's artifacts
+
+jobs:
+  build:
+    runs-on: macos-14
+    if: startsWith(github.event.head_commit.message, 'release:')
+    steps:
+      - uses: actions/checkout@v5
+      # ... build ./dist/my-binary ...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-binary
+          path: dist/*
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.event.head_commit.message, 'release:')
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+      - run: npx just-release # creates the release + attaches build's artifacts
+        env:
+          CI: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ---
 

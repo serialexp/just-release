@@ -123,7 +123,7 @@ export async function createOrUpdateGitHubRelease(
   version: string,
   releaseNotes: string,
   token: string
-): Promise<{ url: string; isNew: boolean }> {
+): Promise<{ url: string; isNew: boolean; releaseId: number }> {
   // Octokit's default `log.warn` prints a line like
   //   `GET /repos/.../releases/tags/v0.13.2 - 404 with id ... in 321ms`
   // for any 4xx response. The 404 from the existence probe below is
@@ -200,7 +200,7 @@ export async function createOrUpdateGitHubRelease(
       body: updatedNotes,
     });
 
-    return { url: existingRelease.html_url, isNew: false };
+    return { url: existingRelease.html_url, isNew: false, releaseId: existingRelease.id };
   }
 
   // Create new release
@@ -214,6 +214,56 @@ export async function createOrUpdateGitHubRelease(
     prerelease: false,
   });
 
-  return { url: release.html_url, isNew: true };
+  return { url: release.html_url, isNew: true, releaseId: release.id };
+}
+
+/**
+ * Upload files to a release as assets. Any existing asset with the same name is
+ * deleted first, so re-runs (e.g. a tag update on a re-released version) are
+ * idempotent rather than failing on a name clash.
+ */
+export async function uploadReleaseAssets(
+  token: string,
+  repoInfo: RepoInfo,
+  releaseId: number,
+  files: Array<{ name: string; data: Buffer }>
+): Promise<void> {
+  if (files.length === 0) return;
+
+  const octokit = new Octokit({
+    auth: token,
+    log: { debug: () => {}, info: () => {}, warn: () => {}, error: console.error },
+  });
+
+  const existing = await octokit.paginate(octokit.repos.listReleaseAssets, {
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
+    release_id: releaseId,
+    per_page: 100,
+  });
+
+  for (const file of files) {
+    const clash = existing.find((a) => a.name === file.name);
+    if (clash) {
+      await octokit.repos.deleteReleaseAsset({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        asset_id: clash.id,
+      });
+    }
+
+    await octokit.repos.uploadReleaseAsset({
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+      release_id: releaseId,
+      name: file.name,
+      // Octokit types `data` as string, but binary uploads accept a Buffer.
+      data: file.data as unknown as string,
+      headers: {
+        'content-type': 'application/octet-stream',
+        'content-length': file.data.length,
+      },
+    });
+  }
 }
 
