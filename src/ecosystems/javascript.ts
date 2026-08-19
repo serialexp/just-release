@@ -128,6 +128,30 @@ export function extractGitHubRepo(
 export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org';
 
 /**
+ * Registry hosts known to implement the npm attestation API that `--provenance`
+ * requires. `--provenance` uploads a Sigstore attestation to the registry
+ * alongside the publish; registries that don't implement the attestation
+ * endpoint (private Artifactory, self-hosted verdaccio, etc.) reject or ignore
+ * it. We only enable provenance when publishing to one of these.
+ */
+const PROVENANCE_SUPPORTING_HOSTS = new Set([
+  'registry.npmjs.org',
+  'npm.pkg.github.com',
+]);
+
+/**
+ * Whether the given registry is one we know supports npm provenance. Matches on
+ * hostname so trailing slashes / http-vs-https / paths don't matter.
+ */
+export function registrySupportsProvenance(registry: string): boolean {
+  try {
+    return PROVENANCE_SUPPORTING_HOSTS.has(new URL(registry).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Determine the registry a package publishes to. Honours
  * `publishConfig.registry` in the package's own package.json (the value npm
  * itself consults), falling back to the public npm registry.
@@ -404,13 +428,24 @@ export class JavaScriptAdapter implements EcosystemAdapter {
 
     for (const pkg of jsPackages) {
       const warnings: string[] = [];
-      const provenance = await checkProvenanceSupport(pkg.path, pm);
-      if (!provenance.supported) {
-        warnings.push(`Publishing ${pkg.name} without provenance: ${provenance.reason}`);
+      const registry = await getPublishRegistry(pkg.path);
+
+      // Only attempt provenance on registries that support the attestation
+      // API. For any other registry (e.g. a private Artifactory) publishing
+      // without provenance is the intended behavior, so we stay silent rather
+      // than warning about a "missing" feature the registry never offered.
+      let useProvenance = false;
+      if (registrySupportsProvenance(registry)) {
+        const provenance = await checkProvenanceSupport(pkg.path, pm);
+        useProvenance = provenance.supported;
+        if (!provenance.supported) {
+          warnings.push(
+            `Publishing ${pkg.name} without provenance: ${provenance.reason}`
+          );
+        }
       }
 
-      const { command, args } = getPublishCommand(pm, provenance.supported, version);
-      const registry = await getPublishRegistry(pkg.path);
+      const { command, args } = getPublishCommand(pm, useProvenance, version);
 
       try {
         await exec(command, args, { cwd: pkg.path });

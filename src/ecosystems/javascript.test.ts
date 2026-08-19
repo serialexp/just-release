@@ -10,6 +10,7 @@ import {
   checkProvenanceSupport,
   extractGitHubRepo,
   getPublishRegistry,
+  registrySupportsProvenance,
   DEFAULT_NPM_REGISTRY,
 } from './javascript.js';
 import type { ExecFn } from './types.js';
@@ -637,6 +638,99 @@ test('publishPackages uses --provenance when package has repository field', asyn
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('publishPackages skips provenance (silently) for a private registry', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    await writeFile(join(tmpDir, 'pnpm-lock.yaml'), '');
+    await mkdir(join(tmpDir, 'a'), { recursive: true });
+    // Has a repository field (would otherwise qualify for provenance) but
+    // targets a private registry that doesn't support it.
+    await writeFile(join(tmpDir, 'a', 'package.json'), JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      repository: { type: 'git', url: 'https://github.com/foo/bar' },
+      publishConfig: { registry: 'https://artifactory.example.com/api/npm/npm-local/' },
+    }));
+
+    const calls: { command: string; args: string[] }[] = [];
+    const mockExec: ExecFn = async (command, args) => {
+      calls.push({ command, args });
+      return { stdout: '', stderr: '' };
+    };
+
+    const packages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'a'), ecosystem: 'javascript' as const },
+    ];
+
+    const results = await adapter.publishPackages(tmpDir, '1.0.0', packages, mockExec);
+
+    assert.strictEqual(results.length, 1);
+    assert.ok(results[0].success);
+    // No --provenance for a private registry...
+    assert.deepStrictEqual(calls[0].args, ['publish', '--no-git-checks', '--access', 'public']);
+    // ...and no warning, because that's the intended behavior, not a degradation.
+    assert.strictEqual(results[0].warnings, undefined);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('publishPackages uses --provenance for the GitHub Packages registry', async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'test-js-'));
+  try {
+    await writeFile(join(tmpDir, 'pnpm-lock.yaml'), '');
+    await mkdir(join(tmpDir, 'a'), { recursive: true });
+    await writeFile(join(tmpDir, 'a', 'package.json'), JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      repository: { type: 'git', url: 'https://github.com/foo/bar' },
+      publishConfig: { registry: 'https://npm.pkg.github.com' },
+    }));
+
+    const calls: { command: string; args: string[] }[] = [];
+    const mockExec: ExecFn = async (command, args) => {
+      calls.push({ command, args });
+      return { stdout: '', stderr: '' };
+    };
+
+    const packages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'a'), ecosystem: 'javascript' as const },
+    ];
+
+    const results = await adapter.publishPackages(tmpDir, '1.0.0', packages, mockExec);
+
+    assert.ok(results[0].success);
+    assert.deepStrictEqual(calls[0].args, ['publish', '--no-git-checks', '--access', 'public', '--provenance']);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// --- registrySupportsProvenance tests ---
+
+test('registrySupportsProvenance recognizes the public npm registry', () => {
+  assert.strictEqual(registrySupportsProvenance('https://registry.npmjs.org'), true);
+  assert.strictEqual(registrySupportsProvenance('https://registry.npmjs.org/'), true);
+  assert.strictEqual(registrySupportsProvenance(DEFAULT_NPM_REGISTRY), true);
+});
+
+test('registrySupportsProvenance recognizes GitHub Packages', () => {
+  assert.strictEqual(registrySupportsProvenance('https://npm.pkg.github.com'), true);
+  assert.strictEqual(registrySupportsProvenance('https://npm.pkg.github.com/'), true);
+});
+
+test('registrySupportsProvenance rejects private and unknown registries', () => {
+  assert.strictEqual(
+    registrySupportsProvenance('https://artifactory.example.com/api/npm/npm-local/'),
+    false
+  );
+  assert.strictEqual(registrySupportsProvenance('https://npm.internal.example.com'), false);
+  // A host that merely contains the known name isn't a match.
+  assert.strictEqual(registrySupportsProvenance('https://registry.npmjs.org.evil.com'), false);
+  assert.strictEqual(registrySupportsProvenance('not a url'), false);
+  assert.strictEqual(registrySupportsProvenance(''), false);
 });
 
 // --- extractGitHubRepo tests ---
