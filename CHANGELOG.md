@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0 (2026-08-19)
+
+### Features
+
+- report full command output on publish failure
+
 ## 0.16.0 (2026-08-19)
 
 ### Features
