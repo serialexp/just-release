@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0 (2026-08-19)
+
+### Features
+
+- enable provenance only for registries that support it
+
 ## 0.17.0 (2026-08-19)
 
 ### Features
