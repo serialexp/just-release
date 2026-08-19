@@ -3,7 +3,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { publishAllPackages, hasPublishFailures } from './publish.js';
+import {
+  publishAllPackages,
+  hasPublishFailures,
+  allPublishesFailed,
+} from './publish.js';
 import type {
   EcosystemAdapter,
   WorkspacePackage,
@@ -193,6 +197,73 @@ test('hasPublishFailures returns false for skipped ecosystems', () => {
         ecosystem: 'JavaScript',
         skipped: true,
         skipReason: 'no token',
+        results: [],
+      },
+    ]),
+    false
+  );
+});
+
+test('allPublishesFailed returns true when every attempt failed', () => {
+  assert.strictEqual(
+    allPublishesFailed([
+      {
+        ecosystem: 'JavaScript',
+        skipped: false,
+        results: [
+          { packageName: 'a', success: false, error: 'boom' },
+          { packageName: 'b', success: false, error: 'boom' },
+        ],
+      },
+    ]),
+    true
+  );
+});
+
+test('allPublishesFailed returns false when at least one succeeded', () => {
+  assert.strictEqual(
+    allPublishesFailed([
+      {
+        ecosystem: 'JavaScript',
+        skipped: false,
+        results: [
+          { packageName: 'a', success: false, error: 'boom' },
+          { packageName: 'b', success: true },
+        ],
+      },
+    ]),
+    false
+  );
+});
+
+test('allPublishesFailed spans ecosystems (fail in one, success in another)', () => {
+  assert.strictEqual(
+    allPublishesFailed([
+      {
+        ecosystem: 'JavaScript',
+        skipped: false,
+        results: [{ packageName: 'js', success: false, error: 'boom' }],
+      },
+      {
+        ecosystem: 'Rust',
+        skipped: false,
+        results: [{ packageName: 'rs', success: true }],
+      },
+    ]),
+    false
+  );
+});
+
+test('allPublishesFailed returns false when nothing was attempted', () => {
+  // Skipped ecosystems (external publish, all-private, missing prereqs)
+  // contribute no results — a skip is not a total failure.
+  assert.strictEqual(allPublishesFailed([]), false);
+  assert.strictEqual(
+    allPublishesFailed([
+      {
+        ecosystem: 'JavaScript',
+        skipped: true,
+        skipReason: 'all private',
         results: [],
       },
     ]),

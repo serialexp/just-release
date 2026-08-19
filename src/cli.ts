@@ -23,7 +23,11 @@ import { generateChangelogSection, groupCommitsByPackage } from './changelog.js'
 import { simpleGit } from 'simple-git';
 import { getCommitPrefix, generatePRSummary } from './formatting.js';
 import { detectPostRelease } from './post-release.js';
-import { publishAllPackages, hasPublishFailures } from './publish.js';
+import {
+  publishAllPackages,
+  hasPublishFailures,
+  allPublishesFailed,
+} from './publish.js';
 import { detectWorkflowPublishSteps } from './workflow-publish-check.js';
 import { createRequire } from 'node:module';
 import type { WorkspacePackage } from './workspace.js';
@@ -57,6 +61,7 @@ async function runPostRelease(cwd: string) {
   // Check if the workflow already has its own publish steps
   const workflowCheck = await detectWorkflowPublishSteps(cwd);
   let publishFailed = false;
+  let allFailed = false;
 
   if (workflowCheck.hasExternalPublish) {
     console.log('⚠️  ════════════════════════════════════════════════════════════');
@@ -109,10 +114,21 @@ async function runPostRelease(cwd: string) {
 
     if (hasPublishFailures(summaries)) {
       publishFailed = true;
+      allFailed = allPublishesFailed(summaries);
       console.log('\n⚠️  Some packages failed to publish\n');
     } else if (summaries.length > 0) {
       console.log();
     }
+  }
+
+  // If publishing was attempted and nothing made it to a registry, there's
+  // nothing to announce — skip the GitHub release rather than advertising a
+  // version that was never published.
+  if (allFailed) {
+    console.error(
+      '❌ No packages were published — skipping GitHub release creation.\n'
+    );
+    process.exit(1);
   }
 
   console.log(`📝 Creating GitHub release for v${version}...\n`);

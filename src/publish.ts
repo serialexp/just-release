@@ -84,3 +84,15 @@ export function hasPublishFailures(summaries: PublishSummary[]): boolean {
     s.results.some((r) => !r.success)
   );
 }
+
+/**
+ * True when publishing was actually attempted (at least one package) and every
+ * attempt failed. Skipped ecosystems (external publish steps, all-private, or
+ * missing prerequisites) contribute no results and so never trigger this — a
+ * skip is not a failure. Used to abort GitHub release creation when nothing
+ * made it to a registry.
+ */
+export function allPublishesFailed(summaries: PublishSummary[]): boolean {
+  const results = summaries.flatMap((s) => s.results);
+  return results.length > 0 && results.every((r) => !r.success);
+}
