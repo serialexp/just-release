@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0 (2026-08-19)
+
+### Features
+
+- skip GitHub release when no packages publish
+
 ## 0.15.0 (2026-07-17)
 
 ### Features
