@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.0 (2026-09-26)
+
+### Features
+
+- bump minor for breaking changes on 0.x
+
+### Tests
+
+- stop the multi-line output test from losing lines
+
 ## 0.18.0 (2026-08-19)
 
 ### Features
