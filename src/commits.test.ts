@@ -274,6 +274,34 @@ test('analyzeCommits extracts the Release-As footer', async () => {
   }
 });
 
+test('analyzeCommits reads Release-As when other trailers follow it', async () => {
+  // The parser folds every following trailer (Co-Authored-By, Signed-off-by)
+  // into the Release-As note's text; only its first line is the version.
+  const tmpDir = await setupGitRepo();
+  const git: SimpleGit = simpleGit(tmpDir);
+
+  try {
+    await writeFile(join(tmpDir, 'README.md'), '# back to 0.x');
+    await git.add('.');
+    await git.commit(
+      'docs: move back to 0.x\n\nRelease-As: 0.6.0\n\n' +
+        'Co-Authored-By: Someone <someone@example.com>\n' +
+        'Signed-off-by: Someone <someone@example.com>'
+    );
+
+    const workspacePackages = [
+      { name: 'pkg-a', version: '1.0.0', path: join(tmpDir, 'packages', 'pkg-a') },
+    ];
+
+    const commits = await analyzeCommits(tmpDir, workspacePackages);
+
+    assert.strictEqual(commits.length, 1);
+    assert.strictEqual(commits[0].releaseAs, '0.6.0');
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('analyzeCommits extracts Release-As case-insensitively', async () => {
   const tmpDir = await setupGitRepo();
   const git: SimpleGit = simpleGit(tmpDir);

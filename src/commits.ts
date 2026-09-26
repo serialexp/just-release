@@ -170,12 +170,18 @@ export async function analyzeCommits(
     // first note whose value is a recognized pin (valid semver or "stable"),
     // and only fall back to the first note otherwise so a lone malformed value
     // still surfaces the downstream warning.
+    //
+    // The parser folds every trailer after the keyword (Co-Authored-By,
+    // Signed-off-by, …) into the note's text, so only its first line is the
+    // value.
     const releaseAsValues = parsed.notes
       .filter(
         (note: any) =>
           typeof note.title === 'string' && note.title.toLowerCase() === 'release-as',
       )
-      .map((note: any) => (typeof note.text === 'string' ? note.text.trim() : ''))
+      .map((note: any) =>
+        typeof note.text === 'string' ? note.text.trim().split('\n')[0].trim() : '',
+      )
       .filter((text: string) => text.length > 0);
     const releaseAs =
       releaseAsValues.find(
