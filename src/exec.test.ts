@@ -44,9 +44,12 @@ test('defaultExec throws ExecError capturing exit code, stdout, and stderr', asy
 });
 
 test('defaultExec preserves full multi-line output without truncation', async () => {
-  // 500 lines on each stream — must all survive into the message.
+  // 500 lines on each stream — must all survive into the message. The child
+  // sets `process.exitCode` rather than calling `process.exit(1)`: exit() can
+  // kill it before its pending pipe writes flush, which cut the output short
+  // (around line 238) whenever the machine was busy.
   const script =
-    'for (let i = 0; i < 500; i++) { process.stdout.write("out"+i+"\\n"); process.stderr.write("err"+i+"\\n"); } process.exit(1)';
+    'for (let i = 0; i < 500; i++) { process.stdout.write("out"+i+"\\n"); process.stderr.write("err"+i+"\\n"); } process.exitCode = 1';
   await assert.rejects(defaultExec('node', ['-e', script]), (err: unknown) => {
     assert.ok(err instanceof ExecError);
     assert.match(err.message, /out0\b/);
