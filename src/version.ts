@@ -22,9 +22,18 @@ export interface VersionBumpResult {
  * Compute the conventional-commit-driven bump segment (major/minor/patch).
  * Used both for stable bumps and to pick the pre{major,minor,patch} variant
  * when entering a prerelease cycle from a stable version.
+ *
+ * On 0.x a breaking change bumps the minor, not the major: semver allows
+ * anything to change before 1.0.0, so leaving 0.x is a deliberate choice made
+ * with a `Release-As: 1.0.0` footer, never a side effect of a `feat!`.
  */
-function computeBumpFromCommits(commits: CommitInfo[]): 'major' | 'minor' | 'patch' {
-  if (commits.some((c) => c.breaking)) return 'major';
+function computeBumpFromCommits(
+  currentVersion: string,
+  commits: CommitInfo[],
+): 'major' | 'minor' | 'patch' {
+  if (commits.some((c) => c.breaking)) {
+    return semver.major(currentVersion) === 0 ? 'minor' : 'major';
+  }
   if (commits.some((c) => c.type === 'feat')) return 'minor';
   return 'patch';
 }
@@ -85,13 +94,13 @@ export function calculateVersionBump(
   // cycle from a stable version. Picks pre{major,minor,patch} based on commits.
   const enterPrerelease = process.env.JUST_RELEASE_PRERELEASE?.trim();
   if (enterPrerelease) {
-    const baseBump = computeBumpFromCommits(commits);
+    const baseBump = computeBumpFromCommits(currentVersion, commits);
     const preBumpType = `pre${baseBump}` as semver.ReleaseType;
     const newVersion = semver.inc(currentVersion, preBumpType, enterPrerelease);
     return { bumpType: 'enter-prerelease', newVersion };
   }
 
   // Stable bump (existing behavior).
-  const bumpType = computeBumpFromCommits(commits);
+  const bumpType = computeBumpFromCommits(currentVersion, commits);
   return { bumpType, newVersion: semver.inc(currentVersion, bumpType) };
 }

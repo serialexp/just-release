@@ -71,7 +71,7 @@ CI=1 GITHUB_TOKEN=$GITHUB_TOKEN pnpm just-release
 4. **Calculates version bump** - Based on conventional commit types:
    - `feat:` → minor version bump
    - `fix:` → patch version bump
-   - `BREAKING CHANGE:` or `feat!:` → major version bump
+   - `BREAKING CHANGE:` or `feat!:` → major version bump (minor while on 0.x)
    - `chore:`, `docs:` → no release
 5. **Generates changelogs** - Creates/updates `CHANGELOG.md` in each affected package
 6. **Creates release branch** - Named `release/YYYY-MM-DD`
@@ -137,6 +137,11 @@ feat!: remove deprecated API
 
 BREAKING CHANGE: The old API has been removed. Use the new API instead.
 ```
+
+While the version is still `0.x`, a breaking change bumps the **minor**
+version (`0.13.4 → 0.14.0`), as semver allows anything to change before
+1.0.0. Going to 1.0.0 is never a side effect of a `feat!`; ask for it
+explicitly with a `Release-As: 1.0.0` footer (see below).
 
 ### Prerelease Versions (alpha, beta, rc)
 

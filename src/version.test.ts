@@ -300,3 +300,54 @@ test('calculateVersionBump enters prerelease via JUST_RELEASE_PRERELEASE env var
     else process.env.JUST_RELEASE_PRERELEASE = prev;
   }
 });
+
+// 0.x: per semver, anything may change before 1.0.0, so a breaking change
+// bumps the minor, not the major. Leaving 0.x takes an explicit
+// `Release-As: 1.0.0`.
+
+test('calculateVersionBump bumps minor for breaking changes on 0.x', () => {
+  const result = calculateVersionBump('0.13.4', [makeCommit({ breaking: true })]);
+  assert.strictEqual(result.bumpType, 'minor');
+  assert.strictEqual(result.newVersion, '0.14.0');
+});
+
+test('calculateVersionBump bumps minor for a breaking fix on 0.x', () => {
+  const result = calculateVersionBump('0.13.4', [
+    makeCommit({ type: 'fix', breaking: true }),
+  ]);
+  assert.strictEqual(result.bumpType, 'minor');
+  assert.strictEqual(result.newVersion, '0.14.0');
+});
+
+test('calculateVersionBump keeps feat → minor and fix → patch on 0.x', () => {
+  assert.strictEqual(calculateVersionBump('0.13.4', [makeCommit({ type: 'feat' })]).newVersion, '0.14.0');
+  assert.strictEqual(calculateVersionBump('0.13.4', [makeCommit({ type: 'fix' })]).newVersion, '0.13.5');
+});
+
+test('calculateVersionBump still bumps major for breaking changes from 1.0.0 up', () => {
+  const result = calculateVersionBump('1.4.2', [makeCommit({ breaking: true })]);
+  assert.strictEqual(result.bumpType, 'major');
+  assert.strictEqual(result.newVersion, '2.0.0');
+});
+
+test('calculateVersionBump leaves 0.x only via Release-As, even with breaking commits', () => {
+  const result = calculateVersionBump('0.13.4', [
+    makeCommit({ breaking: true }),
+    makeCommit({ type: 'chore', releaseAs: '1.0.0' }),
+  ]);
+  assert.strictEqual(result.bumpType, 'major');
+  assert.strictEqual(result.newVersion, '1.0.0');
+});
+
+test('calculateVersionBump enters a preminor, not a premajor, for breaking changes on 0.x', () => {
+  const prev = process.env.JUST_RELEASE_PRERELEASE;
+  process.env.JUST_RELEASE_PRERELEASE = 'alpha';
+  try {
+    const result = calculateVersionBump('0.13.4', [makeCommit({ breaking: true })]);
+    assert.strictEqual(result.bumpType, 'enter-prerelease');
+    assert.strictEqual(result.newVersion, '0.14.0-alpha.0');
+  } finally {
+    if (prev === undefined) delete process.env.JUST_RELEASE_PRERELEASE;
+    else process.env.JUST_RELEASE_PRERELEASE = prev;
+  }
+});

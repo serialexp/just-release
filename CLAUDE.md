@@ -111,7 +111,8 @@ The ecosystem adapter pattern allows supporting multiple languages. Each adapter
 
 **version.ts** - Version Calculation
 - Determines semver bump type based on commit types:
-  - Breaking changes → major
+  - Breaking changes → major (minor while on 0.x; leaving 0.x takes a
+    `Release-As: 1.0.0` footer)
   - `feat:` → minor
   - `fix:` or `perf:` → patch
   - `chore:`, `docs:`, etc. → no release
