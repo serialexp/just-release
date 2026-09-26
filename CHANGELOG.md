@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1 (2026-09-26)
+
+### Bug Fixes
+
+- read Release-As when other trailers follow it
+
 ## 0.19.0 (2026-09-26)
 
 ### Features
