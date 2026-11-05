@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.0 (2026-11-05)
+
+### Features
+
+- run against GITHUB_API_URL hosts, not just github.com
+
 ## 0.19.1 (2026-09-26)
 
 ### Bug Fixes
