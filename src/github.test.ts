@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { getRepoInfo, findExistingReleaseBranch } from './github.js';
+import { getRepoInfo, findExistingReleaseBranch, parseRemoteUrl } from './github.js';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -106,4 +106,25 @@ test('findExistingReleaseBranch picks date branch over non-date branch', () => {
   const result = findExistingReleaseBranch(branches as any);
 
   assert.strictEqual(result, 'release/2024-01-15');
+});
+
+test('parseRemoteUrl reads owner and repo from any host and URL form', () => {
+  const expected = { owner: 'o', repo: 'r' };
+  for (const url of [
+    'https://github.com/o/r.git',
+    'https://github.com/o/r',
+    'git@github.com:o/r.git',
+    'https://gothab.io/o/r.git',
+    'git@gothab.io:o/r.git',
+    'ssh://git@gothab.io:2222/o/r.git',
+    'https://x-access-token:secret@gothab.io/o/r.git',
+    'https://ghe.example.com/o/r/',
+  ]) {
+    assert.deepStrictEqual(parseRemoteUrl(url), expected, url);
+  }
+  assert.deepStrictEqual(parseRemoteUrl('https://gothab.io/o/my.repo.git'), {
+    owner: 'o',
+    repo: 'my.repo',
+  });
+  assert.strictEqual(parseRemoteUrl('not a url'), null);
 });

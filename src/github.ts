@@ -1,12 +1,23 @@
 // ABOUTME: Manages GitHub API interactions for PR creation and updates
 // ABOUTME: Handles release branch detection and repository information extraction
 
-import { Octokit } from '@octokit/rest';
 import { simpleGit, SimpleGit } from 'simple-git';
+import { createOctokit, uploadUrlFor } from './octokit.js';
 
 export interface RepoInfo {
   owner: string;
   repo: string;
+}
+
+/**
+ * Owner and repo from a git remote URL on any host: `https://host/o/r(.git)`,
+ * `git@host:o/r.git`, or `ssh://git@host[:port]/o/r.git`.
+ */
+export function parseRemoteUrl(url: string): RepoInfo | null {
+  const match = url.match(
+    /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/]+@)?[^/:]+(?::\d*)?[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i
+  );
+  return match ? { owner: match[1], repo: match[2] } : null;
 }
 
 export async function getRepoInfo(repoPath: string): Promise<RepoInfo> {
@@ -20,17 +31,11 @@ export async function getRepoInfo(repoPath: string): Promise<RepoInfo> {
 
   const url = origin.refs.fetch || origin.refs.push || '';
 
-  // Parse GitHub URL (supports both HTTPS and SSH)
-  let match = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(\.git)?$/);
-
-  if (!match) {
-    throw new Error(`Could not parse GitHub repo from remote URL: ${url}`);
+  const info = parseRemoteUrl(url);
+  if (!info) {
+    throw new Error(`Could not parse repository from remote URL: ${url}`);
   }
-
-  return {
-    owner: match[1],
-    repo: match[2],
-  };
+  return info;
 }
 
 export function findExistingReleaseBranch(
@@ -48,7 +53,7 @@ export async function createOrUpdatePR(
   changelogSummary: string,
   token: string
 ): Promise<{ url: string; isNew: boolean }> {
-  const octokit = new Octokit({ auth: token });
+  const octokit = createOctokit(token);
   const repoInfo = await getRepoInfo(repoPath);
 
   // Get default branch (usually main or master)
@@ -131,8 +136,7 @@ export async function createOrUpdateGitHubRelease(
   // logs. Silence Octokit's per-request warnings — we surface our own
   // status messages, and any *real* problem still throws and is handled
   // by the caller.
-  const octokit = new Octokit({
-    auth: token,
+  const octokit = createOctokit(token, {
     log: {
       debug: () => {},
       info: () => {},
@@ -230,10 +234,16 @@ export async function uploadReleaseAssets(
 ): Promise<void> {
   if (files.length === 0) return;
 
-  const octokit = new Octokit({
-    auth: token,
+  const octokit = createOctokit(token, {
     log: { debug: () => {}, info: () => {}, warn: () => {}, error: console.error },
   });
+
+  const { data: release } = await octokit.repos.getRelease({
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
+    release_id: releaseId,
+  });
+  const uploadUrl = uploadUrlFor(release.upload_url);
 
   const existing = await octokit.paginate(octokit.repos.listReleaseAssets, {
     owner: repoInfo.owner,
@@ -253,6 +263,8 @@ export async function uploadReleaseAssets(
     }
 
     await octokit.repos.uploadReleaseAsset({
+      // Upload where the release says to, not at uploads.github.com.
+      url: uploadUrl,
       owner: repoInfo.owner,
       repo: repoInfo.repo,
       release_id: releaseId,

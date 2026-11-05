@@ -1,7 +1,7 @@
 // ABOUTME: Fetches the current GitHub Actions run's uploaded artifacts and
 // ABOUTME: extracts their files so they can be attached to a release as assets.
 
-import { Octokit } from '@octokit/rest';
+import { createOctokit } from './octokit.js';
 import { unzipSync } from 'fflate';
 import { basename } from 'node:path';
 import type { RepoInfo } from './github.js';
@@ -40,7 +40,7 @@ export async function collectRunArtifactFiles(
   repoInfo: RepoInfo,
   runId: number
 ): Promise<AssetFile[]> {
-  const octokit = new Octokit({ auth: token });
+  const octokit = createOctokit(token);
 
   const artifacts = await octokit.paginate(
     octokit.actions.listWorkflowRunArtifacts,
